@@ -12,6 +12,7 @@ If the LLM is unavailable, the endpoint raises — no silent fallback.
 from __future__ import annotations
 import json
 import os
+from typing import Optional
 from ..models.schemas import ChatResponse, ChatCitation
 from ..data.mock_store import CASES
 
@@ -48,7 +49,7 @@ Return ONLY valid JSON with exactly these keys:
 """
 
 
-def _serialize_case(case_id: str) -> dict | None:
+def _serialize_case(case_id: str) -> Optional[dict]:
     c = CASES.get(case_id)
     if not c:
         return None

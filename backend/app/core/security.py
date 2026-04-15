@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 from jose import jwt, JWTError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -22,7 +23,7 @@ def create_access_token(sub: str, role: str) -> str:
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
-def current_user(token: str | None = Depends(oauth2_scheme)) -> dict:
+def current_user(token: Optional[str] = Depends(oauth2_scheme)) -> dict:
     if not token:
         # allow anonymous read in demo mock mode
         return {"sub": "anonymous", "role": "valuation_analyst"}

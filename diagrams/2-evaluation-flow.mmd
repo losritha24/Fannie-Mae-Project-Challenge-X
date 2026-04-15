@@ -1,0 +1,23 @@
+sequenceDiagram
+    participant UI as Evaluate Page
+    participant API as POST /api/v1/evaluate
+    participant Eval as evaluator.py
+    participant LLM as llm_evaluator.py
+    participant OpenAI as GPT-5.4
+    participant Store as CASES store
+
+    UI->>API: PropertyIntake {address, city, state, zip}
+    API->>Eval: evaluate_address()
+    Eval->>LLM: llm_evaluate(full_address)
+    alt mock_mode=false and key valid
+        LLM->>OpenAI: System prompt + address
+        OpenAI-->>LLM: JSON bundle
+    else mock_mode or quota error
+        LLM-->>LLM: _mock_evaluate(address)
+    end
+    LLM-->>Eval: property_facts, avm_vendors, comparables, anomalies, valuation, hypothesis
+    Eval->>Eval: Wrap into domain models with provenance
+    Eval->>Store: CASES[case_id] = full case
+    Eval-->>API: case bundle
+    API-->>UI: 200 case bundle
+    UI->>UI: Display valuation range, comps, anomalies, hypothesis

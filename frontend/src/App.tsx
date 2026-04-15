@@ -7,6 +7,7 @@ import Audit from "./pages/Audit";
 import Evaluate from "./pages/Evaluate";
 import ReviewQueue from "./pages/ReviewQueue";
 import Compliance from "./pages/Compliance";
+import Landing from "./pages/Landing";
 import { api } from "./api/client";
 
 function CaseLinks() {
@@ -28,12 +29,12 @@ function CaseLinks() {
   );
 }
 
-export default function App() {
+function AppShell() {
   return (
     <div className="app">
       <nav className="sidebar" aria-label="Primary">
         <h1>Property Valuation &amp; Designation Assistant</h1>
-        <NavLink to="/" end>Dashboard</NavLink>
+        <NavLink to="/dashboard" end>Dashboard</NavLink>
         <NavLink to="/evaluate">New Evaluation</NavLink>
         <NavLink to="/review-queue">Anomaly Review Queue</NavLink>
         <CaseLinks />
@@ -44,16 +45,25 @@ export default function App() {
       </nav>
       <main className="main" role="main">
         <Routes>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/evaluate" element={<Evaluate />} />
           <Route path="/review-queue" element={<ReviewQueue />} />
           <Route path="/compliance" element={<Compliance />} />
           <Route path="/case/:id" element={<Workspace />} />
           <Route path="/case/:id/graph" element={<GraphView />} />
           <Route path="/case/:id/audit" element={<Audit />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Landing />} />
+      <Route path="/*" element={<AppShell />} />
+    </Routes>
   );
 }

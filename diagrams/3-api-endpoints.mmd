@@ -1,0 +1,41 @@
+graph LR
+    subgraph Auth["Auth"]
+        A1["POST /auth/login"]
+    end
+
+    subgraph Cases["Cases"]
+        B1["GET /cases"]
+        B2["POST /cases"]
+        B3["GET /cases/:id"]
+        B4["POST /evaluate"]
+    end
+
+    subgraph PropertyData["Property Data"]
+        C1["GET /valuations/:id"]
+        C2["GET /comparables/:id"]
+        C3["GET /anomalies/:id"]
+        C4["GET /avm/:id"]
+        C5["GET /alignment/:id"]
+        C6["GET /images/:id/findings"]
+        C7["GET /graph/:id"]
+    end
+
+    subgraph Interaction["Interaction"]
+        D1["POST /chat"]
+        D2["POST /agent/chat"]
+        D3["POST /documents/upload"]
+    end
+
+    subgraph AuditReports["Audit & Reports"]
+        E1["GET /history/:id"]
+        E2["GET /history"]
+        E3["GET /anomalies/review-queue"]
+        E4["POST /anomalies/:id/:aid/review"]
+        E5["GET /reports/:id/summary"]
+    end
+
+    subgraph System["System"]
+        F1["GET /sources/available"]
+        F2["GET /compliance/retention-policy"]
+        F3["GET /health"]
+    end

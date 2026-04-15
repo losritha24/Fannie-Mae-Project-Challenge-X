@@ -11,6 +11,7 @@ generated.
 """
 from __future__ import annotations
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 from uuid import uuid4
 from ..data.mock_store import CASES
 from ..models.schemas import (
@@ -47,7 +48,7 @@ def _provenance(source_name: str, days: int = 14) -> SourceProvenance:
     )
 
 
-def _parse_date(s: str | None) -> datetime | None:
+def _parse_date(s: Optional[str]) -> Optional[datetime]:
     if not s:
         return None
     try:
@@ -57,7 +58,7 @@ def _parse_date(s: str | None) -> datetime | None:
 
 
 def evaluate_address(address_line: str, city: str, state: str, zip_code: str,
-                     parcel_id: str | None, notes: str | None) -> dict:
+                     parcel_id: Optional[str], notes: Optional[str]) -> dict:
     full_addr = f"{address_line}, {city}, {state} {zip_code}"
     now = datetime.now(timezone.utc)
     case_id = f"CASE-{uuid4().hex[:8].upper()}"

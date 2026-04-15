@@ -4,10 +4,15 @@ import { api } from "../api/client";
 
 export default function Audit() {
   const { id = "CASE-1001" } = useParams();
-  const h = useQuery({ queryKey: ["hist", id], queryFn: () => api.history(id) });
+  const h = useQuery({ queryKey: ["hist", id], queryFn: () => api.history(id), refetchInterval: 5000 });
+  const lastUpdated = h.dataUpdatedAt ? new Date(h.dataUpdatedAt).toLocaleTimeString() : null;
   return (
     <>
-      <h2>Audit &amp; History Timeline</h2>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 4 }}>
+        <h2 style={{ margin: 0 }}>Audit &amp; History Timeline</h2>
+        {lastUpdated && <span className="muted" style={{ fontSize: 11 }}>Last updated {lastUpdated}</span>}
+        {h.isFetching && <span className="muted" style={{ fontSize: 11 }}>Refreshing…</span>}
+      </div>
       <div className="card">
         {h.data && h.data.length === 0 && <p className="muted">No events yet for this case.</p>}
         {h.data?.map((e: any) => (

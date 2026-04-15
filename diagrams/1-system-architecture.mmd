@@ -1,0 +1,48 @@
+graph TB
+    User["🧑‍💼 Analyst / Reviewer"]
+
+    subgraph Frontend["Frontend — React + TypeScript (port 1717)"]
+        Landing["Landing Page"]
+        Dashboard["Dashboard"]
+        Evaluate["New Evaluation"]
+        Workspace["Property Workspace"]
+        Graph["Knowledge Graph"]
+        Audit["Audit & History"]
+        ReviewQueue["Review Queue"]
+        Compliance["Compliance"]
+    end
+
+    subgraph Backend["Backend — FastAPI / Python (port 2727)"]
+        Routes["API Routes /api/v1"]
+        Auth["Auth & JWT"]
+        RateLimit["Rate Limiter"]
+        AuditLog["Audit Log"]
+
+        subgraph Services["Services"]
+            Evaluator["Evaluator"]
+            LLMEval["LLM Evaluator"]
+            Chatbot["Chatbot"]
+            Agent["LangChain Agent"]
+            Ingestion["Ingestion (PDF/XML)"]
+        end
+
+        CasesStore["In-Memory Case Store"]
+    end
+
+    subgraph External["External"]
+        OpenAI["OpenAI GPT-5.4"]
+        MockGen["Mock Data Generator"]
+    end
+
+    User --> Frontend
+    Frontend -- "HTTP/JSON /api/v1" --> Routes
+    Routes --> Auth
+    Routes --> RateLimit
+    Routes --> Services
+    Routes --> AuditLog
+    Services --> CasesStore
+    Evaluator --> LLMEval
+    LLMEval -- "mock_mode=false" --> OpenAI
+    LLMEval -- "mock_mode=true or fallback" --> MockGen
+    Chatbot --> OpenAI
+    Agent --> OpenAI

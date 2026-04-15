@@ -5,9 +5,10 @@ import { api } from "../api/client";
 
 export default function GraphView() {
   const { id = "CASE-1001" } = useParams();
-  const g = useQuery({ queryKey: ["graph", id], queryFn: () => api.graph(id) });
+  const g = useQuery({ queryKey: ["graph", id], queryFn: () => api.graph(id), refetchInterval: 10000 });
   const [sel, setSel] = useState<string | null>(null);
   if (!g.data) return <p>Loading…</p>;
+  const lastUpdated = g.dataUpdatedAt ? new Date(g.dataUpdatedAt).toLocaleTimeString() : null;
   const selNode = g.data.nodes.find((n: any) => n.id === sel);
   const selEdges = g.data.edges.filter((e: any) => e.source === sel || e.target === sel);
 
@@ -22,7 +23,11 @@ export default function GraphView() {
 
   return (
     <>
-      <h2>Knowledge Graph</h2>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 4 }}>
+        <h2 style={{ margin: 0 }}>Knowledge Graph</h2>
+        {lastUpdated && <span className="muted" style={{ fontSize: 11 }}>Last updated {lastUpdated}</span>}
+        {g.isFetching && <span className="muted" style={{ fontSize: 11 }}>Refreshing…</span>}
+      </div>
       <p className="muted">
         Legend: Property, Parcel, Source, Appraisal, Broker Price Opinion (BPO),
         Automated Valuation Model (AVM) Output, Comparable Property, Anomaly.

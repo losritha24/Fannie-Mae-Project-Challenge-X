@@ -1,0 +1,18 @@
+graph TD
+    Login["POST /auth/login"]
+    JWT["JWT Token\nsub + role + exp"]
+
+    Login --> JWT
+
+    JWT --> VA["valuation_analyst\nRead cases, valuations,\ncomparables, chat"]
+    JWT --> QCR["quality_control_reviewer\n+ Anomaly review"]
+    JWT --> CR["compliance_reviewer\n+ All history"]
+    JWT --> AR["audit_reviewer\n+ All history"]
+    JWT --> ADM["administrator\n+ Reset demo\n+ Retention mgmt"]
+
+    subgraph Middleware["Middleware — every request"]
+        RL["Rate Limiter\n180 req/min · 40 burst"]
+        CID["Correlation ID\nX-Correlation-Id header"]
+        RED["PII Redaction\nfrom logs"]
+        SEC["Security Headers\nX-Frame-Options · nosniff"]
+    end

@@ -1,0 +1,31 @@
+graph TD
+    Prop["Property"]
+    Parcel["Parcel"]
+    Appraisal["Appraisal PDF"]
+    BPO["Broker Price Opinion XML"]
+    AVM["AVM Output"]
+    C1["Comparable 1"]
+    C2["Comparable 2"]
+    C3["Comparable 3"]
+    A1["Anomaly — Moderate"]
+    A2["Anomaly — Informational"]
+    A3["Anomaly — Critical"]
+    Src1["County Assessor"]
+    Src2["FHFA"]
+    Src3["MLS / Zillow / Redfin"]
+
+    Prop -->|HAS_PARCEL| Parcel
+    Prop -->|HAS_REPORT| Appraisal
+    Prop -->|HAS_REPORT| BPO
+    Prop -->|HAS_COMPARABLE| C1
+    Prop -->|HAS_COMPARABLE| C2
+    Prop -->|HAS_COMPARABLE| C3
+    Prop -->|HAS_ANOMALY| A1
+    Prop -->|HAS_ANOMALY| A2
+    Prop -->|HAS_ANOMALY| A3
+    AVM -->|DERIVED_FROM| Prop
+    Parcel -->|RETRIEVED_FROM_SOURCE| Src1
+    AVM -->|RETRIEVED_FROM_SOURCE| Src2
+    C1 -->|RETRIEVED_FROM_SOURCE| Src3
+    C2 -->|RETRIEVED_FROM_SOURCE| Src3
+    C3 -->|RETRIEVED_FROM_SOURCE| Src3
