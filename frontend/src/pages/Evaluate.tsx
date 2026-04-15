@@ -2,6 +2,50 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 
+function PropertyImages({ address }: { address: string }) {
+  const [streetErr, setStreetErr] = useState(false);
+  const [satErr, setSatErr] = useState(false);
+  const enc = encodeURIComponent(address);
+  const streetUrl = `/api/v1/maps/streetview?address=${enc}`;
+  const satUrl    = `/api/v1/maps/satellite?address=${enc}`;
+
+  return (
+    <div className="card">
+      <h2>Property Imagery <span className="badge-src" style={{ marginLeft: 6 }}>Google Maps</span></h2>
+      <p className="muted">
+        Street View and satellite imagery of the subject property. Sourced from Google Maps —
+        for reference only, not an appraisal document.
+      </p>
+      <div className="grid-2">
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Street View</div>
+          {streetErr ? (
+            <div style={{ height: 220, background: "#f7f8fa", border: "1px solid var(--border)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span className="muted">No Street View imagery available for this address</span>
+            </div>
+          ) : (
+            <img src={streetUrl} alt={`Street view of ${address}`}
+              onError={() => setStreetErr(true)}
+              style={{ width: "100%", borderRadius: 6, border: "1px solid var(--border)", display: "block" }} />
+          )}
+        </div>
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Satellite View</div>
+          {satErr ? (
+            <div style={{ height: 220, background: "#f7f8fa", border: "1px solid var(--border)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span className="muted">Satellite imagery unavailable</span>
+            </div>
+          ) : (
+            <img src={satUrl} alt={`Satellite view of ${address}`}
+              onError={() => setSatErr(true)}
+              style={{ width: "100%", borderRadius: 6, border: "1px solid var(--border)", display: "block" }} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC"];
 
 type EvalResult = any;
@@ -110,6 +154,8 @@ export default function Evaluate() {
               Model {v.model_version} · Prompt {v.prompt_version} · Data {v.data_version}
             </div>
           </div>
+
+          <PropertyImages address={result.address} />
 
           <div className="grid-2">
             <div className="card">

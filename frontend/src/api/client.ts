@@ -30,4 +30,5 @@ export const api = {
   alignment: (id: string) => req<any>(`/alignment/${id}`),
   reviewQueue: () => req<any[]>("/anomalies/review-queue"),
   retention: () => req<any>("/compliance/retention-policy"),
+  propertyImage: (id: string) => req<any>(`/cases/${id}/property-image`),
 };

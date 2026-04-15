@@ -1,4 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+from fastapi.responses import Response
+import httpx
 from uuid import uuid4
 import os
 from datetime import datetime, timezone
@@ -12,6 +14,7 @@ from ..services.ingestion import extract_pdf, extract_xml
 from ..services.chatbot import answer as chat_answer
 from ..services.agent import run_agent
 from ..services.evaluator import evaluate_address
+from ..services.image_gen import generate_property_image
 from ..core.retention import RETENTION_POLICY
 
 router = APIRouter(prefix="/api/v1")
@@ -93,6 +96,58 @@ def evaluate(intake: PropertyIntake, user: dict = Depends(current_user)):
                "engine": result.get("engine"),
                "weighted_estimate": result["valuation"]["weighted_estimate"],
                "confidence": result["valuation"]["overall_confidence"]})
+    return result
+
+
+# ---------- Google Maps proxy ----------
+@router.get("/maps/streetview")
+async def maps_streetview(address: str, user: dict = Depends(current_user)):
+    key = os.getenv("GOOGLE_MAPS_KEY")
+    if not key:
+        raise HTTPException(503, "GOOGLE_MAPS_KEY not configured")
+    # Check metadata first so we can return a clear 404 if no imagery exists
+    async with httpx.AsyncClient() as client:
+        meta = await client.get(
+            "https://maps.googleapis.com/maps/api/streetview/metadata",
+            params={"location": address, "key": key},
+        )
+        if meta.json().get("status") != "OK":
+            raise HTTPException(404, "No Street View imagery available for this address")
+        img = await client.get(
+            "https://maps.googleapis.com/maps/api/streetview",
+            params={"size": "800x500", "location": address, "fov": "90", "pitch": "0", "key": key},
+        )
+    return Response(content=img.content, media_type="image/jpeg")
+
+
+@router.get("/maps/satellite")
+async def maps_satellite(address: str, user: dict = Depends(current_user)):
+    key = os.getenv("GOOGLE_MAPS_KEY")
+    if not key:
+        raise HTTPException(503, "GOOGLE_MAPS_KEY not configured")
+    async with httpx.AsyncClient() as client:
+        img = await client.get(
+            "https://maps.googleapis.com/maps/api/staticmap",
+            params={
+                "center": address, "zoom": "18", "size": "800x500",
+                "maptype": "satellite",
+                "markers": f"color:red|{address}",
+                "key": key,
+            },
+        )
+    return Response(content=img.content, media_type="image/png")
+
+
+# ---------- Property image (DALL-E) ----------
+@router.get("/cases/{case_id}/property-image")
+def property_image(case_id: str, user: dict = Depends(current_user)):
+    if case_id not in CASES:
+        raise HTTPException(404, "Case not found")
+    try:
+        result = generate_property_image(case_id)
+    except Exception as e:
+        raise HTTPException(502, f"Image generation failed: {type(e).__name__}: {e}")
+    log_event(user["sub"], "image.generate", "case", case_id, {"model": result.get("model")})
     return result
 
 
