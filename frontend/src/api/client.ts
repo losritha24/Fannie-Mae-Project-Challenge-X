@@ -1,12 +1,25 @@
+import { record } from "./metrics";
+
 const BASE = "/api/v1";
 
 async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
-  const r = await fetch(`${BASE}${path}`, {
-    ...opts,
-    headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
-  });
-  if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
-  return r.json() as Promise<T>;
+  const start = performance.now();
+  try {
+    const r = await fetch(`${BASE}${path}`, {
+      ...opts,
+      headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+    });
+    const duration = Math.round(performance.now() - start);
+    if (!r.ok) {
+      record(path, duration, false);
+      throw new Error(`${r.status} ${await r.text()}`);
+    }
+    record(path, duration, true);
+    return r.json() as Promise<T>;
+  } catch (e) {
+    record(path, Math.round(performance.now() - start), false);
+    throw e;
+  }
 }
 
 export const api = {
@@ -34,22 +47,24 @@ export const api = {
   retention: () => req<any>("/compliance/retention-policy"),
   propertyImage: (id: string) => req<any>(`/cases/${id}/property-image`),
   uploadImage: async (case_id: string, file: File): Promise<any> => {
+    const start = performance.now();
     const fd = new FormData();
     fd.append("file", file);
     const r = await fetch(`${BASE}/images/upload?case_id=${encodeURIComponent(case_id)}`, {
-      method: "POST",
-      body: fd,
+      method: "POST", body: fd,
     });
+    record("/images/upload", Math.round(performance.now() - start), r.ok);
     if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
     return r.json();
   },
   uploadDocument: async (case_id: string, file: File): Promise<any> => {
+    const start = performance.now();
     const fd = new FormData();
     fd.append("file", file);
     const r = await fetch(`${BASE}/documents/upload?case_id=${encodeURIComponent(case_id)}`, {
-      method: "POST",
-      body: fd,
+      method: "POST", body: fd,
     });
+    record("/documents/upload", Math.round(performance.now() - start), r.ok);
     if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
     return r.json();
   },
