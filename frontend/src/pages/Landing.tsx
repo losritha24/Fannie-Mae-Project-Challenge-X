@@ -64,7 +64,7 @@ export default function Landing() {
         padding: "12px 48px",
       }}>
         <div style={{ display: "flex", alignItems: "center" }}>
-          <img src="/logo.png" alt="Property Insight AI" style={{ height: 160, width: "auto" }} />
+          <img src="/logo.png" alt="Property Insight AI" style={{ height: 220, width: "auto" }} />
         </div>
         <div style={{ display: "flex", gap: 32 }}>
           {[
