@@ -1,5 +1,6 @@
 import { NavLink, Route, Routes, Navigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { Component, ReactNode } from "react";
 import Dashboard from "./pages/Dashboard";
 import Workspace from "./pages/Workspace";
 import GraphView from "./pages/GraphView";
@@ -11,6 +12,25 @@ import Cases from "./pages/Cases";
 import Landing from "./pages/Landing";
 import ChatbotWidget from "./components/ChatbotWidget";
 import { api } from "./api/client";
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
+  state = { error: null };
+  static getDerivedStateFromError(e: Error) { return { error: e.message }; }
+  render() {
+    if (this.state.error) return (
+      <div style={{ padding: 32, fontFamily: "monospace" }}>
+        <h2 style={{ color: "#a5222f" }}>Something went wrong</h2>
+        <pre style={{ background: "#fde7ea", padding: 16, borderRadius: 8, whiteSpace: "pre-wrap", fontSize: 13 }}>
+          {this.state.error}
+        </pre>
+        <button onClick={() => { this.setState({ error: null }); window.location.href = "/dashboard"; }}>
+          Go to Dashboard
+        </button>
+      </div>
+    );
+    return this.props.children;
+  }
+}
 
 function CaseSubLinks() {
   const cases = useQuery({ queryKey: ["cases"], queryFn: api.listCases, refetchInterval: 5000 });
@@ -40,17 +60,19 @@ function AppShell() {
         </div>
       </nav>
       <main className="main" role="main">
-        <Routes>
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/evaluate" element={<Evaluate />} />
-          <Route path="/cases" element={<Cases />} />
-          <Route path="/review-queue" element={<ReviewQueue />} />
-          <Route path="/compliance" element={<Compliance />} />
-          <Route path="/case/:id" element={<Workspace />} />
-          <Route path="/case/:id/graph" element={<GraphView />} />
-          <Route path="/case/:id/audit" element={<Audit />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/evaluate" element={<Evaluate />} />
+            <Route path="/cases" element={<Cases />} />
+            <Route path="/review-queue" element={<ReviewQueue />} />
+            <Route path="/compliance" element={<Compliance />} />
+            <Route path="/case/:id" element={<Workspace />} />
+            <Route path="/case/:id/graph" element={<GraphView />} />
+            <Route path="/case/:id/audit" element={<Audit />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </ErrorBoundary>
       </main>
       <ChatbotWidget />
     </div>
