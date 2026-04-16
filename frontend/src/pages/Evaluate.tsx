@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
 
 function PropertyImages({ address }: { address: string }) {
@@ -50,9 +51,18 @@ const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","
 
 type EvalResult = any;
 
+const SOURCE_TYPE_COLOR: Record<string, string> = {
+  public: "#1565c0",
+  licensed: "#6a1b9a",
+  market_signal: "#e65100",
+};
+
 export default function Evaluate() {
   const location = useLocation();
   const prefill = (location.state as any)?.prefill ?? "";
+  const sourcesQuery = useQuery({ queryKey: ["sources"], queryFn: api.sources });
+  const allSources: any[] = sourcesQuery.data ?? [];
+
   const [form, setForm] = useState({
     address_line: prefill || "123 Maple Street",
     city: "Austin",
@@ -61,43 +71,91 @@ export default function Evaluate() {
     parcel_id: "",
     notes: "",
   });
+  const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
+  const [sourcesInitialized, setSourcesInitialized] = useState(false);
+
+  // Initialize all sources as selected once loaded
+  if (allSources.length > 0 && !sourcesInitialized) {
+    setSelectedSources(new Set(allSources.map((s: any) => s.name)));
+    setSourcesInitialized(true);
+  }
+
+  const toggleSource = (name: string) => {
+    setSelectedSources(prev => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
+  };
+
   const [result, setResult] = useState<EvalResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Valuation docs (PDF/XML) — shown after evaluation
   const [files, setFiles] = useState<File[]>([]);
   const [docResults, setDocResults] = useState<any[]>([]);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Property images — in the form
+  const [images, setImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [imgDragOver, setImgDragOver] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  const addImages = (incoming: File[]) => {
+    const valid = incoming.filter(f => f.type.startsWith("image/"));
+    setImages(prev => [...prev, ...valid]);
+    valid.forEach(f => {
+      const url = URL.createObjectURL(f);
+      setImagePreviews(prev => [...prev, url]);
+    });
+  };
+
+  const removeImage = (i: number) => {
+    URL.revokeObjectURL(imagePreviews[i]);
+    setImages(prev => prev.filter((_, idx) => idx !== i));
+    setImagePreviews(prev => prev.filter((_, idx) => idx !== i));
+  };
+
   const upd = (k: string) => (e: any) => setForm({ ...form, [k]: e.target.value });
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErr(null); setBusy(true); setResult(null); setDocResults([]);
+    setErr(null); setBusy(true); setResult(null); setDocResults([]); setFiles([]);
     try {
-      const r = await api.evaluate(form);
+      const payload = { ...form, selected_sources: Array.from(selectedSources) };
+      const r = await api.evaluate(payload);
       setResult(r);
-      // Auto-upload any queued files
-      if (files.length > 0) {
-        setUploadBusy(true);
-        const results: any[] = [];
-        for (const f of files) {
-          try {
-            const dr = await api.uploadDocument(r.case_id, f);
-            results.push({ filename: f.name, ...dr });
-          } catch (ex: any) {
-            results.push({ filename: f.name, error: ex.message });
-          }
+      // Auto-upload queued property images
+      if (images.length > 0) {
+        for (const img of images) {
+          try { await api.uploadImage(r.case_id, img); } catch { /* non-fatal */ }
         }
-        setDocResults(results);
-        setUploadBusy(false);
       }
     } catch (ex: any) {
       setErr(ex.message || "Evaluation failed");
     } finally {
       setBusy(false);
     }
+  };
+
+  const analyzeDocuments = async () => {
+    if (!result || files.length === 0) return;
+    setUploadBusy(true);
+    const results: any[] = [];
+    for (const f of files) {
+      try {
+        const dr = await api.uploadDocument(result.case_id, f);
+        results.push({ filename: f.name, ...dr });
+      } catch (ex: any) {
+        results.push({ filename: f.name, error: ex.message });
+      }
+    }
+    setDocResults(results);
+    setUploadBusy(false);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -159,11 +217,131 @@ export default function Evaluate() {
           <label>Case notes <span className="muted">(optional)</span></label>
           <textarea rows={2} value={form.notes} onChange={upd("notes")} />
         </div>
-        {/* File upload */}
-        <div style={{ marginTop: 14 }}>
-          <label style={{ fontWeight: 600, fontSize: 13, display: "block", marginBottom: 6 }}>
-            Upload Property Documents <span className="muted">(optional — PDF or XML)</span>
+        {/* Data source selection */}
+        <div style={{ marginTop: 16 }}>
+          <label style={{ fontWeight: 600, fontSize: 13, display: "block", marginBottom: 4 }}>
+            Data Sources
+            <span className="muted" style={{ fontWeight: 400, marginLeft: 6 }}>
+              ({selectedSources.size} of {allSources.length} selected)
+            </span>
           </label>
+          <p className="muted" style={{ marginBottom: 8, marginTop: 0 }}>
+            Select which sources to include in the valuation. Deselect any you want excluded.
+          </p>
+          {sourcesQuery.isLoading ? (
+            <span className="muted">Loading sources…</span>
+          ) : (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {allSources.map((src: any) => {
+                const on = selectedSources.has(src.name);
+                const color = SOURCE_TYPE_COLOR[src.type] ?? "#2e7d4a";
+                return (
+                  <button
+                    key={src.name}
+                    type="button"
+                    onClick={() => toggleSource(src.name)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 6,
+                      padding: "5px 12px", borderRadius: 999, fontSize: 12,
+                      border: `1.5px solid ${color}`,
+                      background: on ? color : "#fff",
+                      color: on ? "#fff" : color,
+                      cursor: "pointer", fontWeight: 600,
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {on ? "✓ " : ""}{src.name}
+                    <span style={{
+                      fontSize: 10, opacity: 0.75,
+                      background: on ? "rgba(255,255,255,0.2)" : `${color}22`,
+                      padding: "1px 5px", borderRadius: 4,
+                    }}>
+                      {(src.reliability * 100).toFixed(0)}%
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {allSources.length > 0 && (
+            <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+              <button type="button" className="secondary" style={{ fontSize: 11, padding: "3px 10px" }}
+                onClick={() => setSelectedSources(new Set(allSources.map((s: any) => s.name)))}>
+                Select all
+              </button>
+              <button type="button" className="secondary" style={{ fontSize: 11, padding: "3px 10px" }}
+                onClick={() => setSelectedSources(new Set())}>
+                Clear all
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Property image upload */}
+        <div style={{ marginTop: 16 }}>
+          <label style={{ fontWeight: 600, fontSize: 13, display: "block", marginBottom: 4 }}>
+            Property Images <span className="muted" style={{ fontWeight: 400 }}>(optional — JPG, PNG, WEBP)</span>
+          </label>
+          <p className="muted" style={{ marginBottom: 8, marginTop: 0 }}>
+            Upload exterior or interior photos to support condition analysis.
+          </p>
+          <div
+            onDragOver={e => { e.preventDefault(); setImgDragOver(true); }}
+            onDragLeave={() => setImgDragOver(false)}
+            onDrop={e => { e.preventDefault(); setImgDragOver(false); addImages(Array.from(e.dataTransfer.files)); }}
+            onClick={() => imageInputRef.current?.click()}
+            style={{
+              border: `2px dashed ${imgDragOver ? "#2e7d4a" : "#b0c4b8"}`,
+              borderRadius: 8, padding: "16px", textAlign: "center",
+              cursor: "pointer", background: imgDragOver ? "#e8f5ec" : "#f4faf6",
+              transition: "all 0.15s",
+            }}
+          >
+            <div style={{ fontSize: 24, marginBottom: 4 }}>🖼️</div>
+            <div style={{ fontSize: 13, color: "#5b6472" }}>
+              Drag & drop images, or <span style={{ color: "#2e7d4a", fontWeight: 600 }}>click to browse</span>
+            </div>
+            <input ref={imageInputRef} type="file" multiple accept="image/*"
+              style={{ display: "none" }}
+              onChange={e => { addImages(Array.from(e.target.files || [])); e.target.value = ""; }} />
+          </div>
+
+          {images.length > 0 && (
+            <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {images.map((img, i) => (
+                <div key={i} style={{ position: "relative", width: 80, height: 80 }}>
+                  <img src={imagePreviews[i]} alt={img.name}
+                    style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 6, border: "1px solid #b0c4b8", display: "block" }} />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(i)}
+                    style={{
+                      position: "absolute", top: -6, right: -6,
+                      background: "#a5222f", color: "#fff",
+                      border: "none", borderRadius: "50%",
+                      width: 18, height: 18, fontSize: 11, lineHeight: "18px",
+                      cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                      padding: 0,
+                    }}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginTop: 16, display: "flex", gap: 10 }}>
+          <button type="submit" disabled={busy}>
+            {busy ? "Evaluating…" : "Start Evaluation"}
+          </button>
+          <button type="button" className="secondary" onClick={() => { setResult(null); setDocResults([]); setFiles([]); }} disabled={!result}>Clear</button>
+        </div>
+        {err && <p style={{ color: "var(--crit)" }}>{err}</p>}
+      </form>
+
+      {result && (
+        <div className="card">
+          <h2>Upload Valuation Documents</h2>
+          <p className="muted">Upload appraisal reports, inspection reports, tax records, or purchase agreements for AI analysis (PDF or XML).</p>
           <div
             onDragOver={e => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
@@ -180,7 +358,7 @@ export default function Evaluate() {
             <div style={{ fontSize: 13, color: "#5b6472" }}>
               Drag & drop files here, or <span style={{ color: "#2e7d4a", fontWeight: 600 }}>click to browse</span>
             </div>
-            <div className="muted" style={{ marginTop: 4 }}>Appraisal reports, inspection reports, tax records, purchase agreements (PDF / XML)</div>
+            <div className="muted" style={{ marginTop: 4 }}>PDF or XML — appraisals, inspections, tax records, purchase agreements</div>
             <input ref={fileInputRef} type="file" multiple accept=".pdf,.xml"
               style={{ display: "none" }} onChange={handleFileInput} />
           </div>
@@ -202,21 +380,19 @@ export default function Evaluate() {
               ))}
             </div>
           )}
-        </div>
 
-        <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
-          <button type="submit" disabled={busy}>
-            {busy ? "Evaluating…" : files.length > 0 ? `Evaluate + Analyze ${files.length} File${files.length > 1 ? "s" : ""}` : "Evaluate Property"}
-          </button>
-          <button type="button" className="secondary" onClick={() => { setResult(null); setDocResults([]); setFiles([]); }} disabled={!result && files.length === 0}>Clear</button>
-        </div>
-        {err && <p style={{ color: "var(--crit)" }}>{err}</p>}
-      </form>
+          <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
+            <button type="button" onClick={analyzeDocuments} disabled={uploadBusy || files.length === 0}>
+              {uploadBusy ? "Analyzing…" : `Analyze ${files.length > 0 ? files.length + " " : ""}Document${files.length !== 1 ? "s" : ""}`}
+            </button>
+          </div>
 
-      {uploadBusy && (
-        <div className="card" style={{ textAlign: "center", padding: 24 }}>
-          <div style={{ fontSize: 24, marginBottom: 8 }}>🤖</div>
-          <p className="muted">AI is analyzing your uploaded documents…</p>
+          {uploadBusy && (
+            <div style={{ textAlign: "center", padding: "16px 0" }}>
+              <div style={{ fontSize: 24, marginBottom: 8 }}>🤖</div>
+              <p className="muted">AI is analyzing your uploaded documents…</p>
+            </div>
+          )}
         </div>
       )}
 

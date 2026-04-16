@@ -187,6 +187,28 @@ async def upload_document(case_id: str, file: UploadFile = File(...),
     return {"doc_id": doc_id, "ai_analysis": ai_analysis, **result}
 
 
+# ---------- Property image upload ----------
+@router.post("/images/upload")
+async def upload_image(case_id: str, file: UploadFile = File(...),
+                       user: dict = Depends(current_user)):
+    if case_id not in CASES:
+        raise HTTPException(404, "Case not found")
+    ext = os.path.splitext(file.filename.lower())[1]
+    if ext not in {".jpg", ".jpeg", ".png", ".gif", ".webp"}:
+        raise HTTPException(400, "Only JPG, PNG, GIF, WEBP supported")
+    content = await file.read()
+    img_id = f"IMG-{uuid4().hex[:6].upper()}"
+    CASES[case_id].setdefault("images", []).append({
+        "img_id": img_id,
+        "filename": file.filename,
+        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        "size_bytes": len(content),
+    })
+    log_event(user["sub"], "image.upload", "case", case_id,
+              {"img_id": img_id, "filename": file.filename})
+    return {"img_id": img_id, "filename": file.filename, "size_bytes": len(content)}
+
+
 # ---------- Sources ----------
 @router.get("/sources/available")
 def sources():

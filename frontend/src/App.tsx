@@ -27,7 +27,7 @@ function AppShell() {
   return (
     <div className="app">
       <nav className="sidebar" aria-label="Primary">
-        <img src="/logo.png" alt="Property Insight AI" style={{ width: "100%", maxWidth: 220, marginBottom: 12 }} />
+        <img src="/logo.png" alt="Property Insight AI" style={{ width: "100%", maxWidth: 150, marginBottom: 12 }} />
         <NavLink to="/dashboard" end>Dashboard</NavLink>
         <NavLink to="/evaluate">New Evaluation</NavLink>
         <NavLink to="/cases">Property Workspace</NavLink>

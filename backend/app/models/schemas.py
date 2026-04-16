@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Literal, Optional, Any
+from typing import Literal, Optional, Any, List
 from datetime import datetime
 
 
@@ -29,6 +29,7 @@ class PropertyIntake(BaseModel):
     zip_code: str
     parcel_id: Optional[str] = None
     notes: Optional[str] = None
+    selected_sources: Optional[List[str]] = None
 
 
 class PropertySummary(BaseModel):
