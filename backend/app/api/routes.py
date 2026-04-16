@@ -67,6 +67,7 @@ def get_case(case_id: str, user: dict = Depends(current_user)):
     c = CASES.get(case_id)
     if not c:
         raise HTTPException(404, "Case not found")
+    log_event(user["sub"], "case.viewed", "case", case_id)
     return c
 
 

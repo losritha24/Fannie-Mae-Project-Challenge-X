@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { api } from "../api/client";
 
 function PropertyImages({ address }: { address: string }) {
@@ -51,8 +51,10 @@ const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","
 type EvalResult = any;
 
 export default function Evaluate() {
+  const location = useLocation();
+  const prefill = (location.state as any)?.prefill ?? "";
   const [form, setForm] = useState({
-    address_line: "123 Maple Street",
+    address_line: prefill || "123 Maple Street",
     city: "Austin",
     state: "TX",
     zip_code: "78701",

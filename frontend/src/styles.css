@@ -1,14 +1,14 @@
 :root {
-  --bg: #f7f8fa;
+  --bg: #f4f7f5;
   --panel: #ffffff;
-  --border: #e3e6ec;
+  --border: #dde6e0;
   --text: #1b1f27;
   --muted: #5b6472;
-  --accent: #1f4e8a;
-  --ok: #2f7d4a;
+  --accent: #2e7d4a;
+  --ok: #2e7d4a;
   --warn: #b35d00;
   --crit: #a5222f;
-  --pill-bg: #eef2f7;
+  --pill-bg: #edf4ef;
 }
 * { box-sizing: border-box; }
 body {
@@ -20,11 +20,11 @@ body {
 a { color: var(--accent); text-decoration: none; }
 .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
 .sidebar {
-  background: #12233e; color: #eaeef5; padding: 16px;
+  background: #0f2818; color: #eaeef5; padding: 16px;
 }
 .sidebar h1 { font-size: 14px; margin: 0 0 24px; }
 .sidebar a { display: block; color: #cfd7e5; padding: 8px 10px; border-radius: 6px; margin-bottom: 4px; }
-.sidebar a.active, .sidebar a:hover { background: #1f3a66; color: #fff; }
+.sidebar a.active, .sidebar a:hover { background: #2e7d4a; color: #fff; }
 .main { padding: 20px 28px; }
 .card {
   background: var(--panel); border: 1px solid var(--border);

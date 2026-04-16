@@ -17,9 +17,93 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
 from typing import Any
 
+# --- Call A: property facts, AVM estimates, datapoint alignment, comparables ---
+SYSTEM_PROMPT_A = """You are a senior U.S. residential valuation analyst assistant.
+
+Given a U.S. home address, produce property data using your best knowledge of public
+records (FHFA, HUD, County Assessor), MLS, and AVM vendors (Zillow, Redfin,
+HouseCanary, Red Bell, CoreLogic). Be realistic for the ZIP code and neighborhood.
+
+NON-NEGOTIABLE RULES:
+- Do NOT use protected-class attributes or proxy features.
+- Every numeric fact must carry a source name and confidence (0.0-1.0).
+- Never fabricate precision — lower confidence when uncertain.
+
+Return ONLY valid JSON with EXACTLY these top-level keys:
+
+{
+  "property_facts": {
+    "square_feet":   {"value": <int>, "source": "<name>", "confidence": <0-1>},
+    "bedrooms":      {"value": <int>, "source": "<name>", "confidence": <0-1>},
+    "bathrooms":     {"value": <number>, "source": "<name>", "confidence": <0-1>},
+    "lot_size_sqft": {"value": <int>, "source": "<name>", "confidence": <0-1>},
+    "year_built":    {"value": <int>, "source": "<name>", "confidence": <0-1>}
+  },
+  "avm_vendor_estimates": [
+    {"vendor": "Zillow|Redfin|HouseCanary|Red Bell|CoreLogic",
+     "estimate": <number>, "low": <number>, "high": <number>,
+     "confidence": <0-1>, "as_of_days": <int>, "notes": "<string>"}
+  ],
+  "datapoint_alignment": [
+    {"field": "square_feet|bedrooms|bathrooms|lot_size|condition",
+     "values_by_source": [{"source": "<name>", "value": <any>}],
+     "alignment": "aligned|minor_variance|conflict",
+     "commentary": "<one sentence>"}
+  ],
+  "comparables": [
+    {"address": "<string>", "distance_miles": <number>, "sale_price": <number>,
+     "sale_date_iso": "<YYYY-MM-DD>", "square_feet": <int>,
+     "similarity_score": <0-1>, "reliability_score": <0-1>,
+     "source": "<Zillow|Redfin|HouseCanary|CoreLogic|MLS>"}
+  ]
+}
+
+Return JSON ONLY — no markdown, no prose outside the JSON object.
+"""
+
+# --- Call B: anomalies, valuation band, hypothesis ---
+SYSTEM_PROMPT_B = """You are a senior U.S. residential valuation analyst assistant.
+
+Given a U.S. home address, produce anomaly detection, a valuation guidance range, and a
+valuation hypothesis using your best knowledge of U.S. housing markets. Be realistic for
+the ZIP code and neighborhood.
+
+NON-NEGOTIABLE RULES:
+- Do NOT use protected-class attributes or proxy features.
+- Do NOT provide legal, lending, or appraisal certification advice.
+- Keep the valuation band wide when data is thin. Never hide uncertainty.
+
+Return ONLY valid JSON with EXACTLY these top-level keys:
+
+{
+  "anomalies": [
+    {"category": "<short_snake_case>", "severity": "informational|moderate|critical",
+     "description": "<plain language>", "evidence": ["<source or field>"],
+     "requires_review": <bool>, "recommended_action": "<string>"}
+  ],
+  "valuation": {
+    "floor_value": <number>, "ceiling_value": <number>, "median_value": <number>,
+    "weighted_estimate": <number>, "confidence_band_low": <number>,
+    "confidence_band_high": <number>, "overall_confidence": <0-1>,
+    "contributing_factors": ["<string>"], "conflicting_factors": ["<string>"],
+    "missing_data_impact": ["<string>"]
+  },
+  "hypothesis": {
+    "thesis": "<1-3 sentences>", "facts": ["<string>"], "estimates": ["<string>"],
+    "assumptions": ["<string>"], "risks": ["<string>"], "rationale": "<2-4 sentences>",
+    "confidence_commentary": "<1-2 sentences>",
+    "suggested_next_actions": ["<string>"]
+  }
+}
+
+Return JSON ONLY — no markdown, no prose outside the JSON object.
+"""
+
+# Keep original combined prompt for reference (unused when parallel mode is active)
 SYSTEM_PROMPT = """You are a senior U.S. residential valuation analyst assistant.
 
 Given a U.S. home address, produce a full decision-support valuation bundle using
@@ -327,36 +411,49 @@ def _mock_evaluate(address: str) -> dict[str, Any]:
     }
 
 
+def _parse_json(text: str) -> dict:
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        s, e = text.find("{"), text.rfind("}")
+        if s < 0 or e <= s:
+            raise RuntimeError(f"LLM did not return JSON: {text[:300]}")
+        return json.loads(text[s:e + 1])
+
+
+def _call_llm(system: str, user: str, model: str, api_key: str) -> dict:
+    from langchain_openai import ChatOpenAI
+    from langchain_core.messages import SystemMessage, HumanMessage
+    llm = ChatOpenAI(
+        model=model, temperature=0, api_key=api_key,
+        model_kwargs={"response_format": {"type": "json_object"}},
+    )
+    resp = llm.invoke([SystemMessage(content=system), HumanMessage(content=user)])
+    text = resp.content if isinstance(resp.content, str) else str(resp.content)
+    return _parse_json(text)
+
+
 def llm_evaluate(address: str) -> dict[str, Any]:
     from ..core.config import settings
 
     api_key = os.getenv("OPENAI_API_KEY")
     model = os.getenv("OPENAI_MODEL", "gpt-4o")
 
-    # Use mock when no key is configured or mock_mode is explicitly on.
     if not api_key or settings.mock_mode:
         return _mock_evaluate(address)
 
     try:
-        from langchain_openai import ChatOpenAI
-        from langchain_core.messages import SystemMessage, HumanMessage
+        user_msg_a = f"Subject address: {address}\n\nProduce the property facts, AVM estimates, datapoint alignment, and comparables JSON now."
+        user_msg_b = f"Subject address: {address}\n\nProduce the anomalies, valuation guidance range, and hypothesis JSON now."
 
-        llm = ChatOpenAI(
-            model=model, temperature=0, api_key=api_key,
-            model_kwargs={"response_format": {"type": "json_object"}},
-        )
-        resp = llm.invoke([
-            SystemMessage(content=SYSTEM_PROMPT),
-            HumanMessage(content=f"Subject address: {address}\n\nProduce the full evaluation JSON now."),
-        ])
-        text = resp.content if isinstance(resp.content, str) else str(resp.content)
-        try:
-            data = json.loads(text)
-        except json.JSONDecodeError:
-            start, end = text.find("{"), text.rfind("}")
-            if start < 0 or end <= start:
-                raise RuntimeError(f"LLM did not return JSON: {text[:300]}")
-            data = json.loads(text[start:end + 1])
+        # Run both calls in parallel — roughly halves wall-clock time.
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            fut_a = pool.submit(_call_llm, SYSTEM_PROMPT_A, user_msg_a, model, api_key)
+            fut_b = pool.submit(_call_llm, SYSTEM_PROMPT_B, user_msg_b, model, api_key)
+            data_a = fut_a.result()
+            data_b = fut_b.result()
+
+        data = {**data_a, **data_b}
 
         required = {"property_facts", "avm_vendor_estimates", "datapoint_alignment",
                     "comparables", "anomalies", "valuation", "hypothesis"}
@@ -369,5 +466,4 @@ def llm_evaluate(address: str) -> dict[str, Any]:
         return data
 
     except Exception:
-        # Quota exceeded, network error, etc. — fall back to mock so the UI stays functional.
         return _mock_evaluate(address)
