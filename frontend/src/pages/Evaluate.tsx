@@ -506,25 +506,14 @@ export default function Evaluate() {
           <div className="grid-2">
             <div className="card">
               <h2>Hypothesis &amp; Rationale</h2>
-              <p><strong>Thesis.</strong> {h.thesis}</p>
-              <h3 style={{ fontSize: 13 }}>Facts</h3>
-              <ul>{h.facts.map((x: string) => <li key={x}>{x}</li>)}</ul>
-              <h3 style={{ fontSize: 13 }}>Estimates (model-derived)</h3>
-              <ul>{h.estimates.map((x: string) => <li key={x}>{x}</li>)}</ul>
-              <h3 style={{ fontSize: 13 }}>Assumptions</h3>
-              <ul>{h.assumptions.map((x: string) => <li key={x}>{x}</li>)}</ul>
-              <h3 style={{ fontSize: 13 }}>Risks &amp; data gaps</h3>
-              <ul>{h.risks.map((x: string) => <li key={x}>{x}</li>)}</ul>
-              <h3 style={{ fontSize: 13 }}>Rationale</h3>
-              <p>{h.rationale}</p>
-              {h.confidence_commentary && (
-                <>
-                  <h3 style={{ fontSize: 13 }}>Confidence commentary</h3>
-                  <p>{h.confidence_commentary}</p>
-                </>
-              )}
-              <h3 style={{ fontSize: 13 }}>Suggested next actions</h3>
-              <ul>{h.suggested_next_actions.map((x: string) => <li key={x}>{x}</li>)}</ul>
+              {h?.thesis && <p><strong>Thesis.</strong> {h.thesis}</p>}
+              {h?.facts?.length > 0 && <><h3 style={{ fontSize: 13 }}>Facts</h3><ul>{h.facts.map((x: string) => <li key={x}>{x}</li>)}</ul></>}
+              {h?.estimates?.length > 0 && <><h3 style={{ fontSize: 13 }}>Estimates (model-derived)</h3><ul>{h.estimates.map((x: string) => <li key={x}>{x}</li>)}</ul></>}
+              {h?.assumptions?.length > 0 && <><h3 style={{ fontSize: 13 }}>Assumptions</h3><ul>{h.assumptions.map((x: string) => <li key={x}>{x}</li>)}</ul></>}
+              {h?.risks?.length > 0 && <><h3 style={{ fontSize: 13 }}>Risks &amp; data gaps</h3><ul>{h.risks.map((x: string) => <li key={x}>{x}</li>)}</ul></>}
+              {h?.rationale && <><h3 style={{ fontSize: 13 }}>Rationale</h3><p>{h.rationale}</p></>}
+              {h?.confidence_commentary && <><h3 style={{ fontSize: 13 }}>Confidence commentary</h3><p>{h.confidence_commentary}</p></>}
+              {h?.suggested_next_actions?.length > 0 && <><h3 style={{ fontSize: 13 }}>Suggested next actions</h3><ul>{h.suggested_next_actions.map((x: string) => <li key={x}>{x}</li>)}</ul></>}
             </div>
 
             <div className="card">
@@ -543,12 +532,10 @@ export default function Evaluate() {
                 </tbody>
               </table>
 
-              <h3 style={{ fontSize: 13, marginTop: 14 }}>Contributing factors</h3>
-              <ul>{v.contributing_factors.map((x: string) => <li key={x}>{x}</li>)}</ul>
+              {v?.contributing_factors?.length > 0 && <><h3 style={{ fontSize: 13, marginTop: 14 }}>Contributing factors</h3><ul>{v.contributing_factors.map((x: string) => <li key={x}>{x}</li>)}</ul></>}
               <h3 style={{ fontSize: 13 }}>Conflicting factors</h3>
-              <ul>{v.conflicting_factors.length ? v.conflicting_factors.map((x: string) => <li key={x}>{x}</li>) : <li className="muted">None detected</li>}</ul>
-              <h3 style={{ fontSize: 13 }}>Missing data impact</h3>
-              <ul>{v.missing_data_impact.map((x: string) => <li key={x}>{x}</li>)}</ul>
+              <ul>{v?.conflicting_factors?.length ? v.conflicting_factors.map((x: string) => <li key={x}>{x}</li>) : <li className="muted">None detected</li>}</ul>
+              {(v?.data_quality_notes?.length > 0 || v?.missing_data_impact?.length > 0) && <><h3 style={{ fontSize: 13 }}>Data quality notes</h3><ul>{(v.data_quality_notes ?? v.missing_data_impact ?? []).map((x: string) => <li key={x}>{x}</li>)}</ul></>}
             </div>
           </div>
 
@@ -618,7 +605,7 @@ export default function Evaluate() {
                 </tr>
               </thead>
               <tbody>
-                {result.comparables.map((x: any) => (
+                {(result.comparables ?? []).map((x: any) => (
                   <tr key={x.comp_id}>
                     <td>{x.address}</td>
                     <td>{x.distance_miles}</td>
@@ -635,13 +622,13 @@ export default function Evaluate() {
 
           <div className="card">
             <h2>Anomalies</h2>
-            {result.anomalies.length === 0 && <p className="muted">No anomalies detected.</p>}
-            {result.anomalies.map((a: any) => (
+            {(result.anomalies ?? []).length === 0 && <p className="muted">No anomalies detected.</p>}
+            {(result.anomalies ?? []).map((a: any) => (
               <div key={a.anomaly_id} style={{ marginBottom: 8 }}>
                 <span className={`pill ${a.severity === "critical" ? "crit" : a.severity === "moderate" ? "warn" : "ok"}`}>{a.severity}</span>
                 <strong> {a.category}</strong>
                 <div className="muted">{a.description}</div>
-                <div className="cite">Evidence: {a.evidence.join(" · ")}</div>
+                <div className="cite">Evidence: {(a.evidence ?? []).join(" · ")}</div>
                 {a.recommended_action && <div className="cite">Recommended action: {a.recommended_action}</div>}
               </div>
             ))}
