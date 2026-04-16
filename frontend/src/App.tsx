@@ -9,6 +9,7 @@ import Evaluate from "./pages/Evaluate";
 import ReviewQueue from "./pages/ReviewQueue";
 import Compliance from "./pages/Compliance";
 import Cases from "./pages/Cases";
+import CompareView from "./pages/CompareView";
 import Landing from "./pages/Landing";
 import ChatbotWidget from "./components/ChatbotWidget";
 import { api } from "./api/client";
@@ -52,6 +53,7 @@ function AppShell() {
         <NavLink to="/dashboard" end>Dashboard</NavLink>
         <NavLink to="/evaluate">New Evaluation</NavLink>
         <NavLink to="/cases">Property Workspace</NavLink>
+        <NavLink to="/compare">Compare Cases</NavLink>
         <CaseSubLinks />
         <NavLink to="/review-queue">Anomaly Review Queue</NavLink>
         <NavLink to="/compliance">Security &amp; Compliance</NavLink>
@@ -65,6 +67,7 @@ function AppShell() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/evaluate" element={<Evaluate />} />
             <Route path="/cases" element={<Cases />} />
+            <Route path="/compare" element={<CompareView />} />
             <Route path="/review-queue" element={<ReviewQueue />} />
             <Route path="/compliance" element={<Compliance />} />
             <Route path="/case/:id" element={<Workspace />} />

@@ -2,7 +2,47 @@ import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
-import { getMetrics } from "../api/metrics";
+import { getMetrics, getHistory, TimePoint } from "../api/metrics";
+
+function Sparkline({ data, valueKey, color, height = 40 }: {
+  data: TimePoint[];
+  valueKey: "avgMs" | "successRate";
+  color: string;
+  height?: number;
+}) {
+  if (data.length < 2) {
+    return <div style={{ height, display: "flex", alignItems: "center" }}><span className="muted" style={{ fontSize: 11 }}>Collecting data…</span></div>;
+  }
+  const W = 200;
+  const values = data.map(d => d[valueKey]);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * W;
+    const y = height - ((v - min) / range) * (height - 4) - 2;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+
+  const last = values[values.length - 1];
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <svg width={W} height={height} style={{ display: "block", overflow: "visible" }}>
+        <polyline points={pts} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        {/* Dot on last point */}
+        {(() => {
+          const lx = W;
+          const ly = height - ((last - min) / range) * (height - 4) - 2;
+          return <circle cx={lx.toFixed(1)} cy={ly.toFixed(1)} r={3} fill={color} />;
+        })()}
+      </svg>
+      <span style={{ fontSize: 12, fontWeight: 700, color, minWidth: 52 }}>
+        {valueKey === "avgMs" ? `${Math.round(last)} ms` : `${last.toFixed(1)}%`}
+      </span>
+    </div>
+  );
+}
 
 function healthColor(successRate: number) {
   if (successRate >= 98) return { color: "#2e7d4a", bg: "#e8f5e9", label: "Healthy" };
@@ -31,10 +71,11 @@ export default function Dashboard() {
   const cases = useQuery({ queryKey: ["cases"], queryFn: api.listCases, refetchInterval: 5000 });
   const sources = useQuery({ queryKey: ["sources"], queryFn: api.sources });
   const [metrics, setMetrics] = useState(getMetrics());
+  const [history, setHistory] = useState(getHistory());
 
-  // Refresh metrics every 3s
+  // Refresh metrics + history every 3s
   useEffect(() => {
-    const t = setInterval(() => setMetrics(getMetrics()), 3000);
+    const t = setInterval(() => { setMetrics(getMetrics()); setHistory(getHistory()); }, 3000);
     return () => clearInterval(t);
   }, []);
 
@@ -171,6 +212,24 @@ export default function Dashboard() {
             )}
           </>
         )}
+      </div>
+
+      {/* Market Trend Sparklines */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h2 style={{ marginBottom: 12 }}>Live Metric Trends</h2>
+        <p className="muted" style={{ marginBottom: 14 }}>
+          Rolling snapshots taken every 10 seconds as API calls are made. Reflects the last ~10 minutes of activity.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#5b6472", textTransform: "uppercase", marginBottom: 8 }}>Avg Response Time</div>
+            <Sparkline data={history} valueKey="avgMs" color={metrics.avgResponseMs < 800 ? "#2e7d4a" : metrics.avgResponseMs < 2000 ? "#b35d00" : "#a5222f"} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#5b6472", textTransform: "uppercase", marginBottom: 8 }}>API Success Rate</div>
+            <Sparkline data={history} valueKey="successRate" color={metrics.successRate >= 98 ? "#2e7d4a" : metrics.successRate >= 90 ? "#b35d00" : "#a5222f"} />
+          </div>
+        </div>
       </div>
 
       {/* Cases table */}

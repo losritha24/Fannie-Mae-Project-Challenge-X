@@ -1,4 +1,4 @@
-/** Lightweight client-side API metrics store. */
+/** Lightweight client-side API metrics store with time-series history for sparklines. */
 
 export interface CallRecord {
   endpoint: string;
@@ -7,12 +7,41 @@ export interface CallRecord {
   timestamp: number;
 }
 
-const MAX_RECORDS = 200;
+export interface TimePoint {
+  t: number;        // unix ms
+  avgMs: number;    // rolling avg response time at that moment
+  successRate: number; // 0-100
+}
+
+const MAX_RECORDS = 500;
+const MAX_HISTORY = 60; // sparkline data points
 const records: CallRecord[] = [];
+const history: TimePoint[] = [];
+
+let _lastSnapshotTime = 0;
+const SNAPSHOT_INTERVAL = 10_000; // every 10s
+
+function takeSnapshot() {
+  const now = Date.now();
+  if (now - _lastSnapshotTime < SNAPSHOT_INTERVAL) return;
+  _lastSnapshotTime = now;
+  const window = records.filter(r => now - r.timestamp < 5 * 60_000); // last 5 min
+  if (window.length === 0) return;
+  const ok = window.filter(r => r.success);
+  const avgMs = ok.length > 0 ? Math.round(ok.reduce((a, b) => a + b.duration, 0) / ok.length) : 0;
+  const successRate = (ok.length / window.length) * 100;
+  history.push({ t: now, avgMs, successRate });
+  if (history.length > MAX_HISTORY) history.shift();
+}
 
 export function record(endpoint: string, duration: number, success: boolean) {
   records.push({ endpoint, duration, success, timestamp: Date.now() });
   if (records.length > MAX_RECORDS) records.shift();
+  takeSnapshot();
+}
+
+export function getHistory(): TimePoint[] {
+  return [...history];
 }
 
 export function getMetrics() {
@@ -36,7 +65,6 @@ export function getMetrics() {
     byEndpoint[r.endpoint].calls++;
     if (!r.success) byEndpoint[r.endpoint].failures++;
   }
-  // Compute avg per endpoint from successful calls
   for (const ep of Object.keys(byEndpoint)) {
     const epDurations = records.filter(r => r.endpoint === ep && r.success).map(r => r.duration);
     byEndpoint[ep].avgMs = epDurations.length > 0
