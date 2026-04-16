@@ -94,18 +94,32 @@ def seed_demo_case() -> str:
         ],
         "vision_findings": [
             VisionFinding(
-                finding_id="V1", finding="Possible roof wear on rear elevation",
-                confidence=0.71,
-                explanation="Detected discoloration and uneven shingles in subject image 4.",
-                evidence_thumbnails=["/static/thumbs/v1a.jpg", "/static/thumbs/v1b.jpg"],
-                limitations="Image quality moderate; angle may exaggerate wear. Analyst confirmation required.",
+                finding_id="V1", finding="Exterior condition rated Good — consistent across appraisal and MLS",
+                confidence=0.84,
+                explanation="Appraisal (filed 2 days ago) and MLS listing photos confirm Good exterior condition: intact siding, well-maintained landscaping, and no visible structural concerns on the facade.",
+                evidence_thumbnails=[],
+                limitations="Rear and interior condition not confirmed by appraisal; BPO rates interior as Average-Good.",
             ),
             VisionFinding(
-                finding_id="V2", finding="Exterior quality broadly matches comparables",
-                confidence=0.83,
-                explanation="Siding, landscaping, and facade style align with comp set C1–C2.",
-                evidence_thumbnails=["/static/thumbs/v2.jpg"],
-                limitations="High-level visual similarity only; not a condition grade.",
+                finding_id="V2", finding="Roof age estimated 28 years — condition monitoring advised",
+                confidence=0.74,
+                explanation="Based on 1998 construction date per County Assessor and no permit records for roof replacement, the roof is approximately 28 years old. HouseCanary AVM flags roofs over 20 years for condition watch in this market tier.",
+                evidence_thumbnails=[],
+                limitations="No physical roof inspection on file. Permit history search or inspector report would confirm replacement date.",
+            ),
+            VisionFinding(
+                finding_id="V3", finding="Condition rating conflict: Appraisal (Good) vs BPO (Average-Good)",
+                confidence=0.70,
+                explanation="The licensed appraisal rates overall condition as Good while the Broker Price Opinion (BPO) rates it Average-Good. The delta is consistent with the BPO's drive-by methodology vs the appraiser's interior access.",
+                evidence_thumbnails=[],
+                limitations="Condition reconciliation requires reconciling the appraiser's interior inspection notes with the BPO drive-by observation.",
+            ),
+            VisionFinding(
+                finding_id="V4", finding="Mechanicals consistent with typical maintenance for 1998 vintage",
+                confidence=0.68,
+                explanation="CoreLogic property profile and BPO notes indicate HVAC and water heater are consistent with a once-updated mechanical package typical for 1998-built properties in this Austin market tier.",
+                evidence_thumbnails=[],
+                limitations="CoreLogic data is public-record derived; a licensed HVAC inspection would provide higher confidence.",
             ),
         ],
         "valuation": {
@@ -125,9 +139,11 @@ def seed_demo_case() -> str:
                 "Square footage discrepancy between appraisal and MLS (~4%)",
                 "Vision finding of possible roof wear not reflected in appraisal condition",
             ],
-            "missing_data_impact": [
-                "No Broker Price Opinion on file — widens uncertainty band",
-                "No interior images available for condition confirmation",
+            "data_quality_notes": [
+                "AVM vendor data (HouseCanary, Zillow, Redfin, CoreLogic) queried within the last 14 days; reliability 0.72–0.88",
+                "County Assessor records last refreshed 30 days ago; reliability 0.95",
+                "BPO filed 1 day ago — high recency; appraisal filed 2 days ago",
+                "FHFA HPI applied at ZIP 78701 level; accounts for +3.1% YoY market trend",
             ],
             "model_version": "valuation-reasoner-v0.3",
             "prompt_version": "vp-2026-04-10",
@@ -136,6 +152,23 @@ def seed_demo_case() -> str:
         "documents": [
             {"doc_id": "D1", "filename": "appraisal.pdf", "type": "Appraisal", "pages": 42, "uploaded_at": (NOW - timedelta(days=2)).isoformat(), "extraction_confidence": 0.89},
             {"doc_id": "D2", "filename": "bpo.xml", "type": "Broker Price Opinion (BPO)", "pages": None, "uploaded_at": (NOW - timedelta(days=1)).isoformat(), "extraction_confidence": 0.94},
+        ],
+        "avm_vendors": [
+            {"vendor": "HouseCanary",       "estimate": 471000, "low": 452000, "high": 490000, "confidence": 0.81, "as_of": "2026-04-12"},
+            {"vendor": "Zillow (Zestimate)", "estimate": 483000, "low": 461000, "high": 505000, "confidence": 0.72, "as_of": "2026-04-13"},
+            {"vendor": "CoreLogic AVM",      "estimate": 468000, "low": 449000, "high": 487000, "confidence": 0.88, "as_of": "2026-04-10"},
+            {"vendor": "Redfin Estimate",    "estimate": 478000, "low": 458000, "high": 498000, "confidence": 0.79, "as_of": "2026-04-13"},
+            {"vendor": "RedBell",            "estimate": 465000, "low": 445000, "high": 485000, "confidence": 0.76, "as_of": "2026-04-11"},
+            {"vendor": "Fannie Mae AVM",     "estimate": 476500, "low": 448000, "high": 512000, "confidence": 0.74, "as_of": "2026-04-14"},
+        ],
+        "alignment": [
+            {"field": "Square Footage",   "appraisal": "2,104 sqft", "bpo": "2,100 sqft", "mls": "2,190 sqft", "vision": "—",            "housecanary": "—",          "zillow": "—",         "county": "2,104 sqft", "status": "conflict", "note": "MLS reports ~4% more than appraisal"},
+            {"field": "Condition",        "appraisal": "Good",       "bpo": "Average-Good","mls": "—",          "vision": "Fair (roof)",   "housecanary": "Average",    "zillow": "—",         "county": "—",          "status": "conflict", "note": "Vision flags roof damage vs 'Good' in appraisal"},
+            {"field": "Bedrooms",         "appraisal": "3",          "bpo": "3",           "mls": "3",          "vision": "—",            "housecanary": "3",          "zillow": "3",         "county": "—",          "status": "aligned"},
+            {"field": "Bathrooms",        "appraisal": "2.5",        "bpo": "2.5",         "mls": "2.5",        "vision": "—",            "housecanary": "2.5",        "zillow": "2.5",       "county": "—",          "status": "aligned"},
+            {"field": "Year Built",       "appraisal": "1998",       "bpo": "1998",        "mls": "1998",       "vision": "—",            "housecanary": "1998",       "zillow": "1998",      "county": "1998",       "status": "aligned"},
+            {"field": "Lot Size",         "appraisal": "7,840 sqft", "bpo": "7,840 sqft",  "mls": "—",          "vision": "—",            "housecanary": "—",          "zillow": "—",         "county": "7,840 sqft", "status": "aligned"},
+            {"field": "Value Estimate",   "appraisal": "$475,000",   "bpo": "$468,000",    "mls": "—",          "vision": "—",            "housecanary": "$471,000",   "zillow": "$483,000",  "county": "—",          "status": "partial", "note": "$7K delta appraisal vs BPO; Zillow highest at $483K"},
         ],
     }
     return case_id

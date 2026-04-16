@@ -82,7 +82,7 @@ class Anomaly(BaseModel):
     description: str
     evidence: list[str]
     requires_review: bool
-    status: Literal["open", "acknowledged", "dismissed", "resolved"] = "open"
+    status: Literal["open", "flagged_for_review", "acknowledged", "dismissed", "resolved"] = "open"
 
 
 class VisionFinding(BaseModel):

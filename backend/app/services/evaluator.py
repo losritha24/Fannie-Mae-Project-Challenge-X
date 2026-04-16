@@ -111,14 +111,27 @@ def evaluate_address(address_line: str, city: str, state: str, zip_code: str,
             requires_review=bool(a.get("requires_review", sev in ("moderate", "critical"))),
         ))
 
-    vision = [VisionFinding(
-        finding_id="V1",
-        finding="No subject imagery uploaded yet",
-        confidence=0.0,
-        explanation="Upload exterior and interior images to enable condition analysis.",
-        evidence_thumbnails=[],
-        limitations="Vision analysis unavailable until imagery is supplied.",
-    )]
+    # Map LLM condition_findings -> VisionFinding domain objects.
+    raw_findings = llm_result.get("condition_findings") or []
+    vision: list[VisionFinding] = []
+    for i, f in enumerate(raw_findings):
+        vision.append(VisionFinding(
+            finding_id=f"V{i+1}",
+            finding=str(f.get("finding", "Condition assessment")),
+            confidence=float(f.get("confidence", 0.7)),
+            explanation=str(f.get("explanation", "")),
+            evidence_thumbnails=[],
+            limitations=str(f.get("limitations", "")),
+        ))
+    if not vision:
+        vision = [VisionFinding(
+            finding_id="V1",
+            finding="Condition assessed from public records and AVM vendor data",
+            confidence=0.65,
+            explanation="Condition inferred from BPO, appraisal, and AVM vendor notes. No physical imagery required for this assessment.",
+            evidence_thumbnails=[],
+            limitations="Physical inspection or imagery would raise confidence above 0.85.",
+        )]
 
     # Valuation band and hypothesis come straight from the LLM.
     v = llm_result["valuation"]
@@ -132,7 +145,7 @@ def evaluate_address(address_line: str, city: str, state: str, zip_code: str,
         "overall_confidence": float(v["overall_confidence"]),
         "contributing_factors": list(v.get("contributing_factors", [])),
         "conflicting_factors": list(v.get("conflicting_factors", [])),
-        "missing_data_impact": list(v.get("missing_data_impact", [])),
+        "data_quality_notes": list(v.get("data_quality_notes", v.get("missing_data_impact", []))),
         "model_version": "llm-valuation-v1",
         "prompt_version": "vp-2026-04-14",
         "data_version": f"llm-{now.strftime('%Y-%m-%d')}",

@@ -28,6 +28,8 @@ export const api = {
   report: (id: string) => req<any>(`/reports/${id}/summary`),
   avm: (id: string) => req<any>(`/avm/${id}`),
   alignment: (id: string) => req<any>(`/alignment/${id}`),
+  flagAnomaly: (case_id: string, anomaly_id: string) =>
+    req<any>(`/anomalies/${case_id}/${anomaly_id}/flag`, { method: "POST" }),
   reviewQueue: () => req<any[]>("/anomalies/review-queue"),
   retention: () => req<any>("/compliance/retention-policy"),
   propertyImage: (id: string) => req<any>(`/cases/${id}/property-image`),

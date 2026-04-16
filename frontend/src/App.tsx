@@ -9,6 +9,7 @@ import ReviewQueue from "./pages/ReviewQueue";
 import Compliance from "./pages/Compliance";
 import Cases from "./pages/Cases";
 import Landing from "./pages/Landing";
+import ChatbotWidget from "./components/ChatbotWidget";
 import { api } from "./api/client";
 
 function CaseSubLinks() {
@@ -51,6 +52,7 @@ function AppShell() {
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>
+      <ChatbotWidget />
     </div>
   );
 }

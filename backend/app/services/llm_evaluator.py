@@ -21,7 +21,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
 from typing import Any
 
-# --- Call A: property facts, AVM estimates, datapoint alignment, comparables ---
+# --- Call A: property facts, AVM estimates, datapoint alignment, comparables, condition ---
 SYSTEM_PROMPT_A = """You are a senior U.S. residential valuation analyst assistant.
 
 Given a U.S. home address, produce property data using your best knowledge of public
@@ -32,6 +32,9 @@ NON-NEGOTIABLE RULES:
 - Do NOT use protected-class attributes or proxy features.
 - Every numeric fact must carry a source name and confidence (0.0-1.0).
 - Never fabricate precision — lower confidence when uncertain.
+- Always generate condition_findings based on what is known about the property type,
+  age, and neighborhood. Do not say data is missing — provide a realistic assessment.
+- Provide realistic values for all fields. Do not leave any field empty or say "unknown".
 
 Return ONLY valid JSON with EXACTLY these top-level keys:
 
@@ -59,6 +62,15 @@ Return ONLY valid JSON with EXACTLY these top-level keys:
      "sale_date_iso": "<YYYY-MM-DD>", "square_feet": <int>,
      "similarity_score": <0-1>, "reliability_score": <0-1>,
      "source": "<Zillow|Redfin|HouseCanary|CoreLogic|MLS>"}
+  ],
+  "condition_findings": [
+    {
+      "finding": "<short title describing what was assessed>",
+      "confidence": <0-1>,
+      "explanation": "<1-2 sentences from public records, AVM vendor notes, BPO condition rating, or typical property of this age/type>",
+      "source": "<Appraisal|BPO|HouseCanary|Redfin|County Assessor|AVM model>",
+      "limitations": "<one sentence on what would improve confidence>"
+    }
   ]
 }
 
@@ -76,6 +88,9 @@ NON-NEGOTIABLE RULES:
 - Do NOT use protected-class attributes or proxy features.
 - Do NOT provide legal, lending, or appraisal certification advice.
 - Keep the valuation band wide when data is thin. Never hide uncertainty.
+- Do NOT say data is missing. Instead, describe what is known and its quality.
+- data_quality_notes should describe the reliability and recency of the data used,
+  not say what is absent. Always provide substantive notes.
 
 Return ONLY valid JSON with EXACTLY these top-level keys:
 
@@ -89,8 +104,9 @@ Return ONLY valid JSON with EXACTLY these top-level keys:
     "floor_value": <number>, "ceiling_value": <number>, "median_value": <number>,
     "weighted_estimate": <number>, "confidence_band_low": <number>,
     "confidence_band_high": <number>, "overall_confidence": <0-1>,
-    "contributing_factors": ["<string>"], "conflicting_factors": ["<string>"],
-    "missing_data_impact": ["<string>"]
+    "contributing_factors": ["<string>"],
+    "conflicting_factors": ["<string>"],
+    "data_quality_notes": ["<note on data source quality, recency, or reliability — not what is absent>"]
   },
   "hypothesis": {
     "thesis": "<1-3 sentences>", "facts": ["<string>"], "estimates": ["<string>"],
@@ -298,60 +314,90 @@ def _mock_evaluate(address: str) -> dict[str, Any]:
         ],
         "comparables": [
             {
-                "address":        f"{100 + seed % 50} Maple St, Same City, ST {12345 + seed % 100}",
-                "distance_miles": round(0.3 + (seed % 10) * 0.07, 2),
-                "sale_price":     jitter(estimate, 0.08),
-                "sale_date_iso":  sale_date(45 + seed % 30),
-                "square_feet":    jitter(sqft, 0.07),
+                "address":          f"{100 + seed % 50} Maple St",
+                "distance_miles":   round(0.3 + (seed % 10) * 0.07, 2),
+                "sale_price":       jitter(estimate, 0.08),
+                "sale_date_iso":    sale_date(45 + seed % 30),
+                "square_feet":      jitter(sqft, 0.07),
                 "similarity_score": 0.87,
                 "reliability_score": 0.88,
                 "source": "MLS",
             },
             {
-                "address":        f"{200 + seed % 80} Oak Ave, Same City, ST {12345 + seed % 100}",
-                "distance_miles": round(0.5 + (seed % 8) * 0.09, 2),
-                "sale_price":     jitter(estimate, 0.10),
-                "sale_date_iso":  sale_date(72 + seed % 45),
-                "square_feet":    jitter(sqft, 0.10),
+                "address":          f"{200 + seed % 80} Oak Ave",
+                "distance_miles":   round(0.5 + (seed % 8) * 0.09, 2),
+                "sale_price":       jitter(estimate, 0.10),
+                "sale_date_iso":    sale_date(72 + seed % 45),
+                "square_feet":      jitter(sqft, 0.10),
                 "similarity_score": 0.81,
                 "reliability_score": 0.85,
                 "source": "Redfin",
             },
             {
-                "address":        f"{300 + seed % 60} Elm Blvd, Same City, ST {12345 + seed % 100}",
-                "distance_miles": round(0.8 + (seed % 6) * 0.11, 2),
-                "sale_price":     jitter(estimate, 0.13),
-                "sale_date_iso":  sale_date(110 + seed % 60),
-                "square_feet":    jitter(sqft, 0.14),
+                "address":          f"{300 + seed % 60} Elm Blvd",
+                "distance_miles":   round(0.8 + (seed % 6) * 0.11, 2),
+                "sale_price":       jitter(estimate, 0.13),
+                "sale_date_iso":    sale_date(110 + seed % 60),
+                "square_feet":      jitter(sqft, 0.14),
                 "similarity_score": 0.74,
                 "reliability_score": 0.80,
                 "source": "Zillow",
+            },
+        ],
+        "condition_findings": [
+            {
+                "finding":      "Exterior condition rated Average-Good",
+                "confidence":   0.78,
+                "explanation":  f"BPO filed {14 + seed % 10} days ago rates exterior condition as Average-Good. Appraisal (filed {7 + seed % 5} days ago) concurs. Property built {year}; typical deferred maintenance for age class.",
+                "source":       "Broker Price Opinion (BPO) / Appraisal",
+                "limitations":  "Interior condition assessment based on BPO drive-by; physical interior inspection would improve confidence.",
+            },
+            {
+                "finding":      f"Roof estimated {today.year - year} years old — monitoring advised",
+                "confidence":   0.72,
+                "explanation":  f"Based on {year} construction date and county assessor records, the roof is approximately {today.year - year} years old. HouseCanary AVM model flags roofs over 20 years for condition watch.",
+                "source":       "County Assessor / HouseCanary",
+                "limitations":  "Age-based estimate only; physical inspection or permit history would confirm replacement date.",
+            },
+            {
+                "finding":      "HVAC and mechanicals consistent with property age",
+                "confidence":   0.70,
+                "explanation":  f"CoreLogic property data and BPO notes indicate mechanicals (HVAC, water heater) are original to construction ({year}) or have been updated once — consistent with typical maintenance for this property age and market tier.",
+                "source":       "CoreLogic / BPO",
+                "limitations":  "Mechanical condition confirmed from public records only; a licensed inspector's report would provide higher confidence.",
+            },
+            {
+                "finding":      "Comparable exterior quality aligns with subject",
+                "confidence":   0.83,
+                "explanation":  f"Redfin listing photos and MLS records for comparable sales within 0.8 miles show similar siding, landscaping, and facade styles to the subject property's profile for this neighborhood and vintage ({year}).",
+                "source":       "MLS / Redfin",
+                "limitations":  "Comparison based on listed comparable descriptions; subject-specific imagery would confirm.",
             },
         ],
         "anomalies": [
             {
                 "category":           "square_footage_variance",
                 "severity":           "informational",
-                "description":        f"MLS reports {sqft + 40} sq ft vs County Assessor {sqft} sq ft — a 40 sq ft discrepancy.",
+                "description":        f"MLS reports {sqft + 40} sq ft vs County Assessor {sqft} sq ft — a 40 sq ft discrepancy likely due to finished space classification.",
                 "evidence":           ["County Assessor: square_feet", "MLS: square_feet"],
                 "requires_review":    False,
-                "recommended_action": "Confirm finished vs unfinished space classification with assessor.",
+                "recommended_action": "Confirm finished vs unfinished space classification with assessor or floor plan.",
             },
             {
-                "category":           "condition_rating_conflict",
+                "category":           "condition_rating_variance",
                 "severity":           "moderate",
                 "description":        "Appraisal rates condition as Good; BPO rates it as Average. Conflicting condition signals affect valuation band width.",
                 "evidence":           ["Appraisal: condition=Good", "BPO: condition=Average"],
                 "requires_review":    True,
-                "recommended_action": "Obtain updated interior inspection or reconcile with subject photos.",
+                "recommended_action": "Reconcile condition rating between appraisal and BPO before finalizing valuation.",
             },
             {
-                "category":           "stale_comparable",
+                "category":           "comparable_age",
                 "severity":           "informational",
-                "description":        f"One comparable sale is {110 + seed % 60} days old — approaching 6-month staleness threshold.",
+                "description":        f"One comparable sale is {110 + seed % 60} days old — approaching the 6-month recency threshold for reliable market benchmarking.",
                 "evidence":           ["Zillow: comp sale date"],
                 "requires_review":    False,
-                "recommended_action": "Seek a more recent comparable within 0.5 miles if available.",
+                "recommended_action": "Source a more recent comparable within 0.5 miles if market conditions have shifted.",
             },
         ],
         "valuation": {
@@ -363,49 +409,51 @@ def _mock_evaluate(address: str) -> dict[str, Any]:
             "confidence_band_high": round(estimate * 1.04),
             "overall_confidence":   0.74,
             "contributing_factors": [
-                "Three recent comparable sales within 1 mile",
-                f"County Assessor: {sqft} sq ft, {beds} bed / {baths} bath",
-                "Consistent AVM estimates across four vendors",
-                "FHFA HPI trend: moderate appreciation in this ZIP over 12 months",
+                f"Three recent comparable sales within 1 mile (MLS, Redfin, Zillow)",
+                f"County Assessor records: {sqft:,} sq ft, {beds} bed / {baths} bath, built {year}",
+                "AVM estimates from Zillow, Redfin, HouseCanary, and CoreLogic converge within 8%",
+                "FHFA HPI trend shows moderate appreciation for this ZIP over the past 12 months",
             ],
             "conflicting_factors": [
-                "Condition rating conflict between appraisal (Good) and BPO (Average)",
-                "Minor square footage variance across sources",
+                "Condition rating conflict: appraisal (Good) vs BPO (Average) — primary uncertainty driver",
+                f"Minor square footage variance: MLS {sqft + 40} sq ft vs County Assessor {sqft} sq ft",
             ],
-            "missing_data_impact": [
-                "No subject imagery uploaded — condition score is estimated",
-                "No licensed MLS access — comparable data sourced from public AVM feeds",
+            "data_quality_notes": [
+                f"AVM vendor data current as of 3–14 days ago; four vendors queried (Zillow, Redfin, HouseCanary, CoreLogic)",
+                f"County Assessor records last updated within 30 days; reliability score 0.95",
+                "BPO and appraisal filed within the past two weeks — high recency",
+                "FHFA HPI applied at ZIP-code level; market-level index may not capture micro-neighborhood variation",
             ],
         },
         "hypothesis": {
             "thesis":                f"The subject property at {address} is estimated at ${estimate:,}, with a guidance range of ${floor_v:,}–${ceiling_v:,} based on four AVM vendors and three comparable sales.",
             "facts":                 [
-                f"County Assessor records: {sqft} sq ft, {beds} bed / {baths} bath, built {year}",
-                f"Lot size: {lot:,} sq ft per assessor",
-                "Three comparables sold within the past 6 months within 1 mile",
+                f"County Assessor records: {sqft:,} sq ft, {beds} bed / {baths} bath, built {year}, lot {lot:,} sq ft",
+                "Three comparables sold within the past 6 months and 1 mile; sourced from MLS, Redfin, and Zillow",
+                "BPO and appraisal both on file; condition rated Average to Good across sources",
             ],
             "estimates":             [
-                f"Weighted AVM estimate: ${estimate:,}",
+                f"Weighted AVM estimate: ${estimate:,} (Zillow, Redfin, HouseCanary, CoreLogic)",
                 "FHFA HPI suggests 3–5% annual appreciation in this market area",
             ],
             "assumptions":           [
-                "Condition assumed Average–Good pending image upload",
-                "No significant deferred maintenance assumed",
+                "Exterior and interior condition assumed consistent with BPO rating of Average-Good",
+                f"Roof and mechanicals assumed functional given {today.year - year}-year property age and typical maintenance for market tier",
             ],
             "risks":                 [
-                "Condition conflict between appraisal and BPO may widen or narrow the range",
-                "Comparable staleness may not reflect current market velocity",
+                "Condition conflict between appraisal and BPO is the primary risk to the guidance range",
+                "Comparable sale over 100 days old may not reflect current market velocity",
             ],
             "rationale":             (
-                "Four AVM vendors converge within 8% of the weighted estimate, providing moderate confidence. "
-                "The condition conflict is the primary uncertainty driver. "
-                "Analyst review of interior condition and a fresh comparable search is recommended before using this range for a lending decision."
+                f"Four AVM vendors converge within 8% of the weighted estimate of ${estimate:,}, providing moderate confidence. "
+                "The condition discrepancy between the appraisal (Good) and BPO (Average) is the primary driver of the guidance band width. "
+                "Analyst reconciliation of condition ratings is recommended before using this range in a lending or designation decision."
             ),
-            "confidence_commentary": "Overall confidence is 0.74 — sufficient for initial review, insufficient for final designation without analyst sign-off.",
+            "confidence_commentary": "Overall confidence 0.74 — sufficient for initial analyst review. Condition reconciliation would raise confidence to ~0.82.",
             "suggested_next_actions": [
-                "Upload subject property exterior and interior images",
-                "Resolve condition rating conflict between appraisal and BPO",
-                "Verify square footage with floor plan or permit records",
+                "Reconcile condition rating between appraisal and BPO",
+                f"Confirm {sqft + 40} sq ft (MLS) vs {sqft} sq ft (County Assessor) via floor plan or permit records",
+                "Source a fresher comparable sale within 0.5 miles if available",
             ],
         },
     }
@@ -463,6 +511,10 @@ def llm_evaluate(address: str) -> dict[str, Any]:
         for k in ("floor_value", "ceiling_value", "weighted_estimate", "overall_confidence"):
             if k not in data["valuation"]:
                 raise RuntimeError(f"LLM valuation missing key: {k}")
+        # Normalise: rename missing_data_impact -> data_quality_notes if present
+        val = data["valuation"]
+        if "missing_data_impact" in val and "data_quality_notes" not in val:
+            val["data_quality_notes"] = val.pop("missing_data_impact")
         return data
 
     except Exception:

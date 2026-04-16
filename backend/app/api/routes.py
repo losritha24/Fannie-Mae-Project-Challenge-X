@@ -251,6 +251,28 @@ def anomalies(case_id: str, user: dict = Depends(current_user)):
     return c["anomalies"]
 
 
+@router.post("/anomalies/{case_id}/{anomaly_id}/flag")
+def flag_anomaly(case_id: str, anomaly_id: str, user: dict = Depends(current_user)):
+    """Any authenticated user can flag an anomaly for analyst review."""
+    c = CASES.get(case_id)
+    if not c:
+        raise HTTPException(404, "Case not found")
+    for a in c["anomalies"]:
+        aid = a.anomaly_id if hasattr(a, "anomaly_id") else a.get("anomaly_id")
+        if aid == anomaly_id:
+            if hasattr(a, "status"):
+                a.status = "flagged_for_review"
+                a.requires_review = True
+            else:
+                a["status"] = "flagged_for_review"
+                a["requires_review"] = True
+            log_event(user["sub"], "anomaly.flagged", "case", case_id, {"anomaly_id": anomaly_id})
+            result = a.model_dump(mode="json") if hasattr(a, "model_dump") else dict(a)
+            result["case_id"] = case_id
+            return result
+    raise HTTPException(404, "Anomaly not found")
+
+
 @router.post("/anomalies/{case_id}/{anomaly_id}/review")
 def review_anomaly(case_id: str, anomaly_id: str, decision: str, notes: str = "",
                    user: dict = Depends(require_roles("quality_control_reviewer", "compliance_reviewer"))):
