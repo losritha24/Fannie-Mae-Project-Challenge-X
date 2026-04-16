@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../api/client";
@@ -24,6 +24,8 @@ function shortLabel(label: string, max = 16) {
 
 export default function GraphView() {
   const { id = "CASE-1001" } = useParams();
+  const navigate = useNavigate();
+  const cases = useQuery({ queryKey: ["cases"], queryFn: api.listCases });
   const g = useQuery({ queryKey: ["graph", id], queryFn: () => api.graph(id), refetchInterval: 10000 });
   const [sel, setSel] = useState<string | null>(null);
 
@@ -49,8 +51,19 @@ export default function GraphView() {
 
   return (
     <>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 4 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 4, flexWrap: "wrap" }}>
         <h2 style={{ margin: 0 }}>Knowledge Graph</h2>
+        {cases.data && cases.data.length > 1 && (
+          <select
+            value={id}
+            onChange={e => navigate(`/case/${e.target.value}/graph`)}
+            style={{ fontSize: 13, padding: "5px 10px", borderRadius: 6, border: "1px solid #dde6e0", background: "#fff", cursor: "pointer", maxWidth: 300 }}
+          >
+            {cases.data.map((c: any) => (
+              <option key={c.case_id} value={c.case_id}>{c.address}</option>
+            ))}
+          </select>
+        )}
         {lastUpdated && <span className="muted" style={{ fontSize: 11 }}>Last updated {lastUpdated}</span>}
         {g.isFetching && <span className="muted" style={{ fontSize: 11 }}>Refreshing…</span>}
       </div>
