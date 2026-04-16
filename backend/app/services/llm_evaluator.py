@@ -35,6 +35,9 @@ NON-NEGOTIABLE RULES:
 - Always generate condition_findings based on what is known about the property type,
   age, and neighborhood. Do not say data is missing — provide a realistic assessment.
 - Provide realistic values for all fields. Do not leave any field empty or say "unknown".
+- All dollar values (AVM estimates, comparable sale prices) MUST reflect current 2025-2026
+  market prices for the specific ZIP code — NOT historical or pre-2023 values. U.S. home
+  prices have risen 40-50% since 2019; factor in post-pandemic appreciation fully.
 
 Return ONLY valid JSON with EXACTLY these top-level keys:
 
@@ -91,6 +94,10 @@ NON-NEGOTIABLE RULES:
 - Do NOT say data is missing. Instead, describe what is known and its quality.
 - data_quality_notes should describe the reliability and recency of the data used,
   not say what is absent. Always provide substantive notes.
+- The weighted_estimate and valuation band MUST reflect current 2025-2026 market
+  prices for the ZIP code — NOT historical or pre-2023 values. Median U.S. home
+  prices are approximately $400,000+ nationally; high-cost metros (CA, NY, WA, MA,
+  CO, TX major metros, FL) are significantly higher. Use actual current market data.
 
 Return ONLY valid JSON with EXACTLY these top-level keys:
 
@@ -491,8 +498,25 @@ def llm_evaluate(address: str) -> dict[str, Any]:
         return _mock_evaluate(address)
 
     try:
-        user_msg_a = f"Subject address: {address}\n\nProduce the property facts, AVM estimates, datapoint alignment, and comparables JSON now."
-        user_msg_b = f"Subject address: {address}\n\nProduce the anomalies, valuation guidance range, and hypothesis JSON now."
+        today_str = date.today().isoformat()
+        user_msg_a = (
+            f"Today's date: {today_str}\n"
+            f"Subject address: {address}\n\n"
+            "IMPORTANT: Use CURRENT 2025-2026 market values. Home prices have appreciated "
+            "significantly since 2020. Base all AVM estimates and comparable sale prices on "
+            "realistic current market conditions for this specific ZIP code and neighborhood. "
+            "Do NOT use pre-2023 price levels.\n\n"
+            "Produce the property facts, AVM estimates, datapoint alignment, and comparables JSON now."
+        )
+        user_msg_b = (
+            f"Today's date: {today_str}\n"
+            f"Subject address: {address}\n\n"
+            "IMPORTANT: Use CURRENT 2025-2026 market values. The valuation MUST reflect "
+            "what this property would actually sell for on the open market TODAY based on "
+            "recent comparable sales in this ZIP code. Do NOT undervalue — use realistic "
+            "current asking and sold prices for this neighborhood.\n\n"
+            "Produce the anomalies, valuation guidance range, and hypothesis JSON now."
+        )
 
         # Run both calls in parallel — roughly halves wall-clock time.
         with ThreadPoolExecutor(max_workers=2) as pool:
