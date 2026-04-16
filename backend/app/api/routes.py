@@ -351,7 +351,8 @@ def graph(case_id: str, user: dict = Depends(current_user)):
 # ---------- Chat ----------
 @router.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest, user: dict = Depends(current_user)):
-    if req.case_id not in CASES:
+    # "general" is a reserved id for general (non-case-specific) questions
+    if req.case_id != "general" and req.case_id not in CASES:
         raise HTTPException(404, f"Case {req.case_id} not found. Create one via /evaluate.")
     log_event(user["sub"], "chat.question", "case", req.case_id, {"q": req.question})
     try:
@@ -362,7 +363,7 @@ def chat(req: ChatRequest, user: dict = Depends(current_user)):
         raise HTTPException(502, f"LLM chat failed: {type(e).__name__}: {e}")
     log_event(user["sub"], "chat.answer", "case", req.case_id,
               {"classification": resp.classification, "confidence": resp.confidence,
-               "model": os.getenv("OPENAI_MODEL", "gpt-5.4")})
+               "model": os.getenv("OPENAI_MODEL", "gpt-4o")})
     return resp
 
 

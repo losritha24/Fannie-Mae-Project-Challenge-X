@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()  # populate os.environ from .env before anything else
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from uuid import uuid4

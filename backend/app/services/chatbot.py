@@ -17,33 +17,64 @@ from ..models.schemas import ChatResponse, ChatCitation
 from ..data.mock_store import CASES
 
 
-SYSTEM_PROMPT = """You are the Property Valuation & Designation Assistant chatbot.
+SYSTEM_PROMPT = """You are the Property Valuation & Designation Assistant — an expert AI chatbot
+for U.S. residential real estate analysis, powered by Fannie Mae's PropertyInsight platform.
 
 You will be given the FULL case context for a subject property as JSON, plus a
-user question. Answer the question using ONLY that context.
+user question. Answer the question using that context AND your expert knowledge.
 
 RULES:
-- Do NOT invent facts, sources, comparables, prices, or citations.
-- Every numeric or factual claim must cite a field present in the case context.
+- Provide clear, accurate, helpful answers. Do NOT refuse to answer.
+- When case context is provided, cite specific fields from it.
+- When asked general questions (methodology, market trends, valuation concepts),
+  answer from your expert knowledge — you are a senior residential valuation analyst.
 - Classify your answer as exactly one of: fact, estimate, anomaly, assumption, recommendation.
-- Provide confidence 0.0-1.0 reflecting how well the context answers the question.
-- List data gaps explicitly when the context is insufficient.
+- Provide confidence 0.0-1.0 reflecting how certain you are.
 - Never provide legal, lending, or appraisal certification advice.
 - Never use or infer protected-class attributes (race, color, religion, sex,
   disability, familial status, national origin) or proxy features.
-- Also allow general valuation-methodology questions (e.g. "what is an AVM?",
-  "how is the floor computed?") — answer from general knowledge but still cite
-  any case fields you reference and classify as 'fact' for definitions.
 
 Return ONLY valid JSON with exactly these keys:
 {
-  "direct_answer": "<concise answer first>",
+  "direct_answer": "<clear, helpful answer — be specific and informative>",
   "supporting_evidence": [
-    {"source_name": "<name>", "source_ref": "<case field path or doc>", "excerpt": "<short quote or value>"}
+    {"source_name": "<name>", "source_ref": "<field or knowledge base>", "excerpt": "<value or key fact>"}
   ],
   "confidence": <0.0-1.0>,
-  "data_gaps": ["<string>"],
-  "suggested_next_action": "<string>",
+  "data_gaps": ["<string — only if genuinely missing>"],
+  "suggested_next_action": "<actionable next step>",
+  "classification": "fact|estimate|anomaly|assumption|recommendation"
+}
+"""
+
+GENERAL_SYSTEM_PROMPT = """You are the Property Valuation & Designation Assistant — an expert AI chatbot
+for U.S. residential real estate analysis, powered by Fannie Mae's PropertyInsight platform.
+
+You are a senior residential valuation analyst with deep expertise in:
+- AVM (Automated Valuation Models): Zillow Zestimate, Redfin, HouseCanary, CoreLogic, Red Bell
+- Fannie Mae guidelines, URAR appraisal forms, UAD standards
+- Comparable sales analysis, market adjustments, condition ratings
+- FHFA house price indexes, local market trends
+- Anomaly detection in property data
+- Mortgage underwriting and loan-to-value ratios
+
+Answer the user's question clearly and accurately. Be helpful, specific, and educational.
+
+RULES:
+- Provide thorough, accurate answers using your expert knowledge.
+- For questions about specific properties without case context, give general guidance.
+- Never provide legal advice or claim to be a licensed appraiser.
+- Never use protected-class attributes.
+
+Return ONLY valid JSON with exactly these keys:
+{
+  "direct_answer": "<clear, detailed, helpful answer>",
+  "supporting_evidence": [
+    {"source_name": "<authoritative source>", "source_ref": "<guideline or standard>", "excerpt": "<key fact>"}
+  ],
+  "confidence": <0.0-1.0>,
+  "data_gaps": [],
+  "suggested_next_action": "<helpful next step>",
   "classification": "fact|estimate|anomaly|assumption|recommendation"
 }
 """
@@ -70,29 +101,38 @@ def _serialize_case(case_id: str) -> Optional[dict]:
 
 
 def answer(case_id: str, question: str) -> ChatResponse:
-    """Answer the user's question using the LLM with the full case context."""
-    context = _serialize_case(case_id)
-    if context is None:
-        raise ValueError(f"Case {case_id} not found")
+    """Answer the user's question using the LLM.
 
+    If case_id is 'general', answer as a general property AI assistant without
+    specific case context. Otherwise, inject the full case context for RAG.
+    """
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY not set")
-    model = os.getenv("OPENAI_MODEL", "gpt-5.4")
+    model = os.getenv("OPENAI_MODEL", "gpt-4o")
 
     from langchain_openai import ChatOpenAI
     from langchain_core.messages import SystemMessage, HumanMessage
 
     llm = ChatOpenAI(
-        model=model, temperature=0, api_key=api_key,
+        model=model, temperature=0.1, api_key=api_key,
         model_kwargs={"response_format": {"type": "json_object"}},
     )
-    user_msg = (
-        "CASE CONTEXT (JSON):\n"
-        + json.dumps(context, default=str, indent=2)
-        + f"\n\nUSER QUESTION: {question}\n\nReturn the JSON answer now."
-    )
-    resp = llm.invoke([SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=user_msg)])
+
+    if case_id == "general":
+        # No case context — general property AI assistant mode
+        user_msg = f"USER QUESTION: {question}\n\nReturn the JSON answer now."
+        resp = llm.invoke([SystemMessage(content=GENERAL_SYSTEM_PROMPT), HumanMessage(content=user_msg)])
+    else:
+        context = _serialize_case(case_id)
+        if context is None:
+            raise ValueError(f"Case {case_id} not found")
+        user_msg = (
+            "CASE CONTEXT (JSON):\n"
+            + json.dumps(context, default=str, indent=2)
+            + f"\n\nUSER QUESTION: {question}\n\nReturn the JSON answer now."
+        )
+        resp = llm.invoke([SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=user_msg)])
     text = resp.content if isinstance(resp.content, str) else str(resp.content)
 
     try:

@@ -194,13 +194,11 @@ input, textarea, select {
   position: fixed;
   bottom: 24px;
   right: 24px;
-  width: 52px;
-  height: 52px;
+  width: 68px;
+  height: 68px;
   border-radius: 50%;
-  background: var(--accent);
-  color: #fff;
+  background: transparent;
   border: none;
-  font-size: 20px;
   cursor: pointer;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
   z-index: 1100;
@@ -208,6 +206,7 @@ input, textarea, select {
   align-items: center;
   justify-content: center;
   padding: 0;
+  overflow: hidden;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 .chatbot-toggle:hover {
@@ -283,6 +282,14 @@ input, textarea, select {
 .chatbot-empty {
   text-align: center;
   padding: 24px 0;
+}
+
+.chatbot-no-case {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 32px 16px;
 }
 
 .chatbot-thinking {
