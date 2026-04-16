@@ -60,7 +60,11 @@ export default function Workspace() {
     fetch("/api/v1/cases/" + id).catch(() => {});
   }, [id]);
 
-  if (c.isLoading) return <p>Loading…</p>;
+  if (c.isLoading) return (
+    <div style={{ padding: 40, textAlign: "center" }}>
+      <p className="muted">Loading case…</p>
+    </div>
+  );
   if (c.isError || !c.data) {
     return (
       <div className="card">
@@ -95,14 +99,22 @@ export default function Workspace() {
               <p className="muted" style={{ marginTop: 10 }}>
                 The model blends comparables, FHFA house-price trend, and AVM vendor data to produce a guidance range. Conflicting factors widen the band.
               </p>
-              <h3 style={{ fontSize: 13 }}>Contributing factors</h3>
-              <ul>{val.data.contributing_factors.map((x: string) => <li key={x}>{x}</li>)}</ul>
-              <h3 style={{ fontSize: 13 }}>Conflicting factors</h3>
-              <ul>{val.data.conflicting_factors.map((x: string) => <li key={x}>{x}</li>)}</ul>
-              {val.data.data_quality_notes?.length > 0 && (
+              {val.data.contributing_factors?.length > 0 && (
+                <>
+                  <h3 style={{ fontSize: 13 }}>Contributing factors</h3>
+                  <ul>{val.data.contributing_factors.map((x: string) => <li key={x}>{x}</li>)}</ul>
+                </>
+              )}
+              {val.data.conflicting_factors?.length > 0 && (
+                <>
+                  <h3 style={{ fontSize: 13 }}>Conflicting factors</h3>
+                  <ul>{val.data.conflicting_factors.map((x: string) => <li key={x}>{x}</li>)}</ul>
+                </>
+              )}
+              {(val.data.data_quality_notes?.length > 0 || val.data.missing_data_impact?.length > 0) && (
                 <>
                   <h3 style={{ fontSize: 13 }}>Data quality notes</h3>
-                  <ul>{val.data.data_quality_notes.map((x: string) => <li key={x}>{x}</li>)}</ul>
+                  <ul>{(val.data.data_quality_notes ?? val.data.missing_data_impact ?? []).map((x: string) => <li key={x}>{x}</li>)}</ul>
                 </>
               )}
               <div className="muted">
@@ -130,7 +142,7 @@ export default function Workspace() {
                   <td>{sevPill(a.severity)}</td>
                   <td><strong>{a.category.replace(/_/g, " ")}</strong></td>
                   <td>{a.description}</td>
-                  <td className="muted" style={{ fontSize: 11 }}>{a.evidence.join(" · ")}</td>
+                  <td className="muted" style={{ fontSize: 11 }}>{(a.evidence ?? []).join(" · ")}</td>
                   <td>{a.requires_review
                     ? <span className="pill warn">Yes</span>
                     : <span className="pill ok">No</span>}
@@ -163,7 +175,7 @@ export default function Workspace() {
                 <td>{x.square_feet}</td>
                 <td>{(x.similarity_score * 100).toFixed(0)}%</td>
                 <td>{(x.reliability_score * 100).toFixed(0)}%</td>
-                <td><span className="badge-src">{x.provenance.source_name}</span></td>
+                <td><span className="badge-src">{x.provenance?.source_name ?? "—"}</span></td>
               </tr>
             ))}
           </tbody>
