@@ -64,15 +64,7 @@ export default function Landing() {
         padding: "18px 48px",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: "50%",
-            background: "linear-gradient(135deg, #2e7d4a, #4caf7d)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 18,
-          }}>🏠</div>
-          <span style={{ color: "#fff", fontWeight: 700, fontSize: 17 }}>
-            Property Insight AI
-          </span>
+          <img src="/logo.png" alt="Property Insight AI" style={{ height: 48, width: "auto" }} />
         </div>
         <div style={{ display: "flex", gap: 32 }}>
           {[
