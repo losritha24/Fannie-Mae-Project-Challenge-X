@@ -57,6 +57,15 @@ export const api = {
     if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
     return r.json();
   },
+  prefillFromDocument: async (file: File): Promise<any> => {
+    const start = performance.now();
+    const fd = new FormData();
+    fd.append("file", file);
+    const r = await fetch(`${BASE}/documents/prefill`, { method: "POST", body: fd });
+    record("/documents/prefill", Math.round(performance.now() - start), r.ok);
+    if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+    return r.json();
+  },
   uploadDocument: async (case_id: string, file: File): Promise<any> => {
     const start = performance.now();
     const fd = new FormData();

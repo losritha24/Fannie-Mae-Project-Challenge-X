@@ -10,7 +10,7 @@ from ..models.schemas import (
 from ..core.security import USERS, create_access_token, current_user, require_roles
 from ..core.audit import log_event, get_events
 from ..data.mock_store import CASES, build_graph, seed_demo_case
-from ..services.ingestion import extract_pdf, extract_xml, analyze_document_with_ai
+from ..services.ingestion import extract_pdf, extract_xml, analyze_document_with_ai, extract_address_from_document
 from ..services.chatbot import answer as chat_answer
 from ..services.agent import run_agent
 from ..services.evaluator import evaluate_address
@@ -153,6 +153,31 @@ def property_image(case_id: str, user: dict = Depends(current_user)):
 
 
 # ---------- Documents ----------
+@router.post("/documents/prefill")
+async def document_prefill(file: UploadFile = File(...), user: dict = Depends(current_user)):
+    """Extract address fields from an uploaded PDF/XML so the evaluate form can be pre-filled."""
+    content = await file.read()
+    fname = file.filename or ""
+    if fname.lower().endswith(".pdf"):
+        parsed = extract_pdf(content)
+        full_text = " ".join(p["text"] for p in parsed.get("pages", []))
+    elif fname.lower().endswith(".xml"):
+        parsed = extract_xml(content)
+        full_text = " ".join(f"{k}: {v}" for k, v in parsed.get("fields", {}).items())
+    else:
+        raise HTTPException(400, "Only PDF or XML supported")
+
+    extracted = extract_address_from_document(full_text, fname)
+    log_event(user["sub"], "document.prefill", "system", "n/a",
+              {"filename": fname, "confidence": extracted.get("confidence"),
+               "address": f"{extracted.get('address_line')}, {extracted.get('city')}, {extracted.get('state')}"})
+    return {
+        "filename": fname,
+        "extraction_confidence": parsed.get("extraction_confidence", 0),
+        **extracted,
+    }
+
+
 @router.post("/documents/upload")
 async def upload_document(case_id: str, file: UploadFile = File(...),
                           user: dict = Depends(current_user)):

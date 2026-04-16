@@ -89,6 +89,65 @@ def _mock_doc_analysis(filename: str, error: str = "") -> dict:
     }
 
 
+def extract_address_from_document(extracted_text: str, filename: str) -> dict:
+    """Use AI to pull address + property fields out of document text for form pre-filling."""
+    api_key = os.getenv("OPENAI_API_KEY", "")
+    mock = os.getenv("MOCK_MODE", "false").lower() == "true"
+
+    if not api_key or mock:
+        return {
+            "address_line": "", "city": "", "state": "", "zip_code": "",
+            "parcel_id": "", "notes": f"Extracted from {filename} (mock mode — no AI key)",
+            "confidence": 0.1, "warnings": ["Mock mode: connect an OpenAI key for real extraction"],
+            "document_type": "Unknown",
+        }
+
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+        model = os.getenv("OPENAI_MODEL", "gpt-4o")
+
+        system = """You are a U.S. real estate document parser.
+Extract the subject property address and relevant facts from the document text.
+Return ONLY valid JSON with exactly these keys — use empty string if not found:
+{
+  "address_line": "<street number and name, e.g. 123 Maple St>",
+  "city": "<city name>",
+  "state": "<two-letter US state code, e.g. TX>",
+  "zip_code": "<5-digit zip>",
+  "parcel_id": "<APN or parcel ID if present, else empty string>",
+  "notes": "<any other useful property details in 1-2 sentences>",
+  "document_type": "<e.g. Appraisal, Inspection Report, Tax Record, Purchase Agreement>",
+  "confidence": <0.0-1.0 — how confident you are the address is correct>,
+  "warnings": ["<any concern about the extraction, e.g. multiple addresses found>"]
+}"""
+
+        text_excerpt = extracted_text[:5000] if len(extracted_text) > 5000 else extracted_text
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": f"Filename: {filename}\n\nDocument text:\n{text_excerpt}"},
+            ],
+            temperature=0.0,
+            max_tokens=600,
+        )
+        raw = resp.choices[0].message.content or ""
+        raw = raw.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        return json.loads(raw.strip())
+    except Exception as e:
+        return {
+            "address_line": "", "city": "", "state": "", "zip_code": "",
+            "parcel_id": "", "notes": "",
+            "confidence": 0.0, "warnings": [f"Extraction error: {e}"],
+            "document_type": "Unknown",
+        }
+
+
 def extract_xml(content: bytes) -> dict:
     try:
         root = etree.fromstring(content)

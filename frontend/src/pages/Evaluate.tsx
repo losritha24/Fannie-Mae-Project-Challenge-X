@@ -92,6 +92,51 @@ export default function Evaluate() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // --- Document-first mode ---
+  const [docMode, setDocMode] = useState(false);
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [docExtracting, setDocExtracting] = useState(false);
+  const [docExtracted, setDocExtracted] = useState<any | null>(null);
+  const [docExtractErr, setDocExtractErr] = useState<string | null>(null);
+  const [docDragOver, setDocDragOver] = useState(false);
+  const docInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDocDrop = (e: React.DragEvent) => {
+    e.preventDefault(); setDocDragOver(false);
+    const f = Array.from(e.dataTransfer.files).find(f =>
+      f.name.toLowerCase().endsWith(".pdf") || f.name.toLowerCase().endsWith(".xml")
+    );
+    if (f) { setDocFile(f); setDocExtracted(null); setDocExtractErr(null); }
+  };
+
+  const handleDocInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) { setDocFile(f); setDocExtracted(null); setDocExtractErr(null); }
+    e.target.value = "";
+  };
+
+  const extractFromDoc = async () => {
+    if (!docFile) return;
+    setDocExtracting(true); setDocExtractErr(null); setDocExtracted(null);
+    try {
+      const res = await api.prefillFromDocument(docFile);
+      setDocExtracted(res);
+      // Pre-fill form with extracted values
+      setForm({
+        address_line: res.address_line || "",
+        city: res.city || "",
+        state: res.state || form.state,
+        zip_code: res.zip_code || "",
+        parcel_id: res.parcel_id || "",
+        notes: res.notes || "",
+      });
+    } catch (ex: any) {
+      setDocExtractErr(ex.message || "Extraction failed");
+    } finally {
+      setDocExtracting(false);
+    }
+  };
+
   // Valuation docs (PDF/XML) — shown after evaluation
   const [files, setFiles] = useState<File[]>([]);
   const [docResults, setDocResults] = useState<any[]>([]);
@@ -185,6 +230,95 @@ export default function Evaluate() {
         hypothesis. The output includes source provenance, confidence, anomalies, comparables,
         and plain-language rationale. Not a licensed appraisal.
       </p>
+
+      {/* Document-first toggle */}
+      <div className="card" style={{ marginBottom: 16, padding: "14px 18px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>Have a document? Upload it to auto-fill</div>
+            <div className="muted" style={{ fontSize: 12 }}>Upload a PDF or XML appraisal, tax record, inspection report, or purchase agreement — AI will extract the property address and pre-fill the form below.</div>
+          </div>
+          <button type="button" onClick={() => { setDocMode(d => !d); setDocFile(null); setDocExtracted(null); setDocExtractErr(null); }}
+            style={{ padding: "7px 16px", borderRadius: 6, border: "1.5px solid #2e7d4a", background: docMode ? "#2e7d4a" : "transparent", color: docMode ? "#fff" : "#2e7d4a", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+            {docMode ? "Hide upload" : "Upload document"}
+          </button>
+        </div>
+
+        {docMode && (
+          <div style={{ marginTop: 14 }}>
+            <div
+              onDragOver={e => { e.preventDefault(); setDocDragOver(true); }}
+              onDragLeave={() => setDocDragOver(false)}
+              onDrop={handleDocDrop}
+              onClick={() => docInputRef.current?.click()}
+              style={{
+                border: `2px dashed ${docDragOver ? "#2e7d4a" : "#b0c4b8"}`,
+                borderRadius: 8, padding: "20px 16px", textAlign: "center",
+                cursor: "pointer", background: docDragOver ? "#e8f5ec" : "#f4faf6",
+                transition: "all 0.15s",
+              }}
+            >
+              <div style={{ fontSize: 28, marginBottom: 6 }}>📄</div>
+              <div style={{ fontSize: 13, color: "#5b6472" }}>
+                Drag & drop a PDF or XML, or <span style={{ color: "#2e7d4a", fontWeight: 600 }}>click to browse</span>
+              </div>
+              <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>Appraisals · Tax records · Inspection reports · Purchase agreements</div>
+              <input ref={docInputRef} type="file" accept=".pdf,.xml" style={{ display: "none" }} onChange={handleDocInput} />
+            </div>
+
+            {docFile && (
+              <div style={{ marginTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, background: "#e8f5ec", border: "1px solid #b0d4bb", borderRadius: 6, padding: "6px 12px" }}>
+                  📄 <strong>{docFile.name}</strong>
+                  <span className="muted">({(docFile.size / 1024).toFixed(0)} KB)</span>
+                  <button type="button" onClick={() => { setDocFile(null); setDocExtracted(null); }}
+                    style={{ background: "none", border: "none", color: "#a5222f", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
+                </div>
+                <button type="button" onClick={extractFromDoc} disabled={docExtracting}
+                  style={{ background: "#2e7d4a", color: "#fff", border: "none", borderRadius: 6, padding: "8px 18px", fontWeight: 600, fontSize: 13, cursor: docExtracting ? "wait" : "pointer" }}>
+                  {docExtracting ? "Extracting…" : "Extract & Pre-fill Form"}
+                </button>
+              </div>
+            )}
+
+            {docExtracting && (
+              <div style={{ textAlign: "center", padding: "16px 0" }}>
+                <div style={{ fontSize: 24, marginBottom: 6 }}>🤖</div>
+                <p className="muted">AI is reading your document and extracting the property address…</p>
+              </div>
+            )}
+
+            {docExtractErr && (
+              <div style={{ marginTop: 10, padding: "10px 14px", background: "#fde7ea", borderRadius: 6, color: "#a5222f", fontSize: 13 }}>
+                Extraction failed: {docExtractErr}
+              </div>
+            )}
+
+            {docExtracted && (
+              <div style={{ marginTop: 12, padding: "12px 16px", background: "#e8f5ec", border: "1px solid #b0d4bb", borderRadius: 8 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, color: "#2e7d4a" }}>
+                  ✅ Extracted from {docExtracted.filename}
+                  <span className="muted" style={{ fontWeight: 400, marginLeft: 8, fontSize: 11 }}>
+                    {docExtracted.document_type} · Confidence {((docExtracted.confidence ?? 0) * 100).toFixed(0)}%
+                  </span>
+                </div>
+                <div style={{ fontSize: 13, color: "#1b1f27" }}>
+                  {[docExtracted.address_line, docExtracted.city, docExtracted.state, docExtracted.zip_code].filter(Boolean).join(", ")}
+                  {docExtracted.parcel_id && <span className="muted"> · Parcel {docExtracted.parcel_id}</span>}
+                </div>
+                {docExtracted.warnings?.length > 0 && (
+                  <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
+                    ⚠️ {docExtracted.warnings.join(" · ")}
+                  </div>
+                )}
+                <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                  Form has been pre-filled. Review the fields below and click <strong>Start Evaluation</strong>.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       <form className="card" onSubmit={submit} aria-label="Property evaluation form">
         <div className="grid-2">
