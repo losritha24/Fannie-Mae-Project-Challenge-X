@@ -505,15 +505,71 @@ export default function Evaluate() {
 
           <div className="grid-2">
             <div className="card">
-              <h2>Hypothesis &amp; Rationale</h2>
-              {h?.thesis && <p><strong>Thesis.</strong> {h.thesis}</p>}
-              {h?.facts?.length > 0 && <><h3 style={{ fontSize: 13 }}>Facts</h3><ul>{h.facts.map((x: string) => <li key={x}>{x}</li>)}</ul></>}
-              {h?.estimates?.length > 0 && <><h3 style={{ fontSize: 13 }}>Estimates (model-derived)</h3><ul>{h.estimates.map((x: string) => <li key={x}>{x}</li>)}</ul></>}
-              {h?.assumptions?.length > 0 && <><h3 style={{ fontSize: 13 }}>Assumptions</h3><ul>{h.assumptions.map((x: string) => <li key={x}>{x}</li>)}</ul></>}
-              {h?.risks?.length > 0 && <><h3 style={{ fontSize: 13 }}>Risks &amp; data gaps</h3><ul>{h.risks.map((x: string) => <li key={x}>{x}</li>)}</ul></>}
-              {h?.rationale && <><h3 style={{ fontSize: 13 }}>Rationale</h3><p>{h.rationale}</p></>}
-              {h?.confidence_commentary && <><h3 style={{ fontSize: 13 }}>Confidence commentary</h3><p>{h.confidence_commentary}</p></>}
-              {h?.suggested_next_actions?.length > 0 && <><h3 style={{ fontSize: 13 }}>Suggested next actions</h3><ul>{h.suggested_next_actions.map((x: string) => <li key={x}>{x}</li>)}</ul></>}
+              <h2>AI Summary</h2>
+
+              {/* Thesis — lead with the plain-language verdict */}
+              {h?.thesis && (
+                <div style={{ background: "#e8f5ec", border: "1px solid #b0d4bb", borderRadius: 8, padding: "12px 16px", marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#2e7d4a", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 4 }}>Bottom Line</div>
+                  <div style={{ fontSize: 14, lineHeight: 1.6, color: "#1b1f27" }}>{h.thesis}</div>
+                </div>
+              )}
+
+              {/* What we know / What we estimate — two columns */}
+              {(h?.facts?.length > 0 || h?.estimates?.length > 0) && (
+                <div className="grid-2" style={{ gap: 10, marginBottom: 14 }}>
+                  {h?.facts?.length > 0 && (
+                    <div style={{ background: "#f4faf6", borderRadius: 8, padding: "10px 14px" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "#5b6472", textTransform: "uppercase", marginBottom: 6 }}>✅ What We Know</div>
+                      {h.facts.map((x: string, i: number) => (
+                        <div key={i} style={{ fontSize: 12, lineHeight: 1.5, marginBottom: 4, color: "#1b1f27" }}>• {x}</div>
+                      ))}
+                    </div>
+                  )}
+                  {h?.estimates?.length > 0 && (
+                    <div style={{ background: "#f4faf6", borderRadius: 8, padding: "10px 14px" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "#5b6472", textTransform: "uppercase", marginBottom: 6 }}>📊 Estimated</div>
+                      {h.estimates.map((x: string, i: number) => (
+                        <div key={i} style={{ fontSize: 12, lineHeight: 1.5, marginBottom: 4, color: "#1b1f27" }}>• {x}</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Risks */}
+              {h?.risks?.length > 0 && (
+                <div style={{ background: "#fff8e1", border: "1px solid #f5c842", borderRadius: 8, padding: "10px 14px", marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#b35d00", textTransform: "uppercase", marginBottom: 6 }}>⚠️ Things to Watch</div>
+                  {h.risks.map((x: string, i: number) => (
+                    <div key={i} style={{ fontSize: 12, lineHeight: 1.5, marginBottom: 4, color: "#1b1f27" }}>• {x}</div>
+                  ))}
+                </div>
+              )}
+
+              {/* Confidence */}
+              {h?.confidence_commentary && (
+                <div style={{ fontSize: 12, color: "#5b6472", borderTop: "1px solid var(--border)", paddingTop: 10, marginBottom: 10 }}>
+                  🎯 {h.confidence_commentary}
+                </div>
+              )}
+
+              {/* Next steps */}
+              {h?.suggested_next_actions?.length > 0 && (
+                <>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#5b6472", textTransform: "uppercase", marginBottom: 6 }}>Recommended Next Steps</div>
+                  {h.suggested_next_actions.map((x: string, i: number) => (
+                    <div key={i} style={{
+                      display: "flex", alignItems: "flex-start", gap: 8,
+                      fontSize: 12, lineHeight: 1.5, marginBottom: 6,
+                      background: "#f4faf6", borderRadius: 6, padding: "6px 10px",
+                    }}>
+                      <span style={{ color: "#2e7d4a", fontWeight: 700, flexShrink: 0 }}>{i + 1}.</span>
+                      {x}
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
 
             <div className="card">
