@@ -242,6 +242,23 @@ def comparables(case_id: str, user: dict = Depends(current_user)):
     return c["comparables"]
 
 
+# ---------- Anomaly review queue (product view for analysts) ----------
+@router.get("/anomalies/review-queue")
+def review_queue(user: dict = Depends(current_user)):
+    queue = []
+    for c in CASES.values():
+        for a in c.get("anomalies", []):
+            sev = a.severity if hasattr(a, "severity") else a.get("severity")
+            status = a.status if hasattr(a, "status") else a.get("status", "open")
+            req = a.requires_review if hasattr(a, "requires_review") else a.get("requires_review", False)
+            if req and status == "open" and sev in ("moderate", "critical"):
+                item = a.model_dump(mode="json") if hasattr(a, "model_dump") else dict(a)
+                item.update({"case_id": c["case_id"], "address": c["address"]})
+                queue.append(item)
+    queue.sort(key=lambda x: 0 if x["severity"] == "critical" else 1)
+    return queue
+
+
 # ---------- Anomalies ----------
 @router.get("/anomalies/{case_id}")
 def anomalies(case_id: str, user: dict = Depends(current_user)):
@@ -379,23 +396,6 @@ def alignment(case_id: str, user: dict = Depends(current_user)):
     if not c:
         raise HTTPException(404, "Case not found")
     return {"case_id": case_id, "alignment": c.get("alignment", [])}
-
-
-# ---------- Anomaly review queue (product view for analysts) ----------
-@router.get("/anomalies/review-queue")
-def review_queue(user: dict = Depends(current_user)):
-    queue = []
-    for c in CASES.values():
-        for a in c.get("anomalies", []):
-            sev = a.severity if hasattr(a, "severity") else a.get("severity")
-            status = a.status if hasattr(a, "status") else a.get("status", "open")
-            req = a.requires_review if hasattr(a, "requires_review") else a.get("requires_review", False)
-            if req and status == "open" and sev in ("moderate", "critical"):
-                item = a.model_dump(mode="json") if hasattr(a, "model_dump") else dict(a)
-                item.update({"case_id": c["case_id"], "address": c["address"]})
-                queue.append(item)
-    queue.sort(key=lambda x: 0 if x["severity"] == "critical" else 1)
-    return queue
 
 
 # ---------- Compliance: retention & AI governance policy ----------
