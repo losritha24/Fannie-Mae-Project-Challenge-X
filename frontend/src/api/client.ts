@@ -31,4 +31,14 @@ export const api = {
   reviewQueue: () => req<any[]>("/anomalies/review-queue"),
   retention: () => req<any>("/compliance/retention-policy"),
   propertyImage: (id: string) => req<any>(`/cases/${id}/property-image`),
+  uploadDocument: async (case_id: string, file: File): Promise<any> => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const r = await fetch(`${BASE}/documents/upload?case_id=${encodeURIComponent(case_id)}`, {
+      method: "POST",
+      body: fd,
+    });
+    if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+    return r.json();
+  },
 };

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { api } from "../api/client";
 
@@ -64,21 +64,57 @@ export default function Evaluate() {
   const [result, setResult] = useState<EvalResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [docResults, setDocResults] = useState<any[]>([]);
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const upd = (k: string) => (e: any) => setForm({ ...form, [k]: e.target.value });
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErr(null); setBusy(true); setResult(null);
+    setErr(null); setBusy(true); setResult(null); setDocResults([]);
     try {
       const r = await api.evaluate(form);
       setResult(r);
+      // Auto-upload any queued files
+      if (files.length > 0) {
+        setUploadBusy(true);
+        const results: any[] = [];
+        for (const f of files) {
+          try {
+            const dr = await api.uploadDocument(r.case_id, f);
+            results.push({ filename: f.name, ...dr });
+          } catch (ex: any) {
+            results.push({ filename: f.name, error: ex.message });
+          }
+        }
+        setDocResults(results);
+        setUploadBusy(false);
+      }
     } catch (ex: any) {
       setErr(ex.message || "Evaluation failed");
     } finally {
       setBusy(false);
     }
   };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault(); setDragOver(false);
+    const dropped = Array.from(e.dataTransfer.files).filter(f =>
+      f.name.toLowerCase().endsWith(".pdf") || f.name.toLowerCase().endsWith(".xml")
+    );
+    setFiles(prev => [...prev, ...dropped]);
+  };
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(e.target.files || []);
+    setFiles(prev => [...prev, ...picked]);
+    e.target.value = "";
+  };
+
+  const removeFile = (i: number) => setFiles(prev => prev.filter((_, idx) => idx !== i));
 
   const v = result?.valuation;
   const h = result?.hypothesis;
@@ -123,12 +159,144 @@ export default function Evaluate() {
           <label>Case notes <span className="muted">(optional)</span></label>
           <textarea rows={2} value={form.notes} onChange={upd("notes")} />
         </div>
+        {/* File upload */}
+        <div style={{ marginTop: 14 }}>
+          <label style={{ fontWeight: 600, fontSize: 13, display: "block", marginBottom: 6 }}>
+            Upload Property Documents <span className="muted">(optional — PDF or XML)</span>
+          </label>
+          <div
+            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              border: `2px dashed ${dragOver ? "#2e7d4a" : "#b0c4b8"}`,
+              borderRadius: 8, padding: "20px 16px", textAlign: "center",
+              cursor: "pointer", background: dragOver ? "#e8f5ec" : "#f4faf6",
+              transition: "all 0.15s",
+            }}
+          >
+            <div style={{ fontSize: 28, marginBottom: 6 }}>📎</div>
+            <div style={{ fontSize: 13, color: "#5b6472" }}>
+              Drag & drop files here, or <span style={{ color: "#2e7d4a", fontWeight: 600 }}>click to browse</span>
+            </div>
+            <div className="muted" style={{ marginTop: 4 }}>Appraisal reports, inspection reports, tax records, purchase agreements (PDF / XML)</div>
+            <input ref={fileInputRef} type="file" multiple accept=".pdf,.xml"
+              style={{ display: "none" }} onChange={handleFileInput} />
+          </div>
+
+          {files.length > 0 && (
+            <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {files.map((f, i) => (
+                <div key={i} style={{
+                  display: "flex", alignItems: "center", gap: 6, fontSize: 12,
+                  background: "#e8f5ec", border: "1px solid #b0c4b8",
+                  borderRadius: 6, padding: "4px 10px",
+                }}>
+                  📄 {f.name}
+                  <button type="button" onClick={() => removeFile(i)} style={{
+                    background: "none", border: "none", color: "#a5222f",
+                    cursor: "pointer", padding: 0, fontSize: 14, lineHeight: 1,
+                  }}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
-          <button type="submit" disabled={busy}>{busy ? "Evaluating…" : "Evaluate Property"}</button>
-          <button type="button" className="secondary" onClick={() => setResult(null)} disabled={!result}>Clear</button>
+          <button type="submit" disabled={busy}>
+            {busy ? "Evaluating…" : files.length > 0 ? `Evaluate + Analyze ${files.length} File${files.length > 1 ? "s" : ""}` : "Evaluate Property"}
+          </button>
+          <button type="button" className="secondary" onClick={() => { setResult(null); setDocResults([]); setFiles([]); }} disabled={!result && files.length === 0}>Clear</button>
         </div>
         {err && <p style={{ color: "var(--crit)" }}>{err}</p>}
       </form>
+
+      {uploadBusy && (
+        <div className="card" style={{ textAlign: "center", padding: 24 }}>
+          <div style={{ fontSize: 24, marginBottom: 8 }}>🤖</div>
+          <p className="muted">AI is analyzing your uploaded documents…</p>
+        </div>
+      )}
+
+      {docResults.length > 0 && (
+        <div className="card">
+          <h2>AI Document Analysis</h2>
+          <p className="muted">The AI has read and analyzed each uploaded file for property-relevant information.</p>
+          {docResults.map((dr, i) => {
+            const a = dr.ai_analysis;
+            if (dr.error) return (
+              <div key={i} style={{ marginBottom: 12, padding: 12, background: "#fde7ea", borderRadius: 6 }}>
+                <strong>📄 {dr.filename}</strong>
+                <p className="muted" style={{ color: "var(--crit)" }}>Upload failed: {dr.error}</p>
+              </div>
+            );
+            if (!a) return null;
+            return (
+              <div key={i} style={{ marginBottom: 20, borderBottom: "1px solid var(--border)", paddingBottom: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <span style={{ fontSize: 20 }}>📄</span>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>{dr.filename}</div>
+                    <span className="pill ok">{a.document_type}</span>
+                    <span className="muted" style={{ fontSize: 11, marginLeft: 8 }}>
+                      Extraction confidence: {((a.confidence || 0) * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                </div>
+
+                <p style={{ fontSize: 13, marginBottom: 8 }}>{a.summary}</p>
+
+                {a.property_address && (
+                  <p className="muted" style={{ fontSize: 12 }}>📍 Address found: <strong>{a.property_address}</strong></p>
+                )}
+
+                {a.valuation_impact && (
+                  <div style={{ fontSize: 12, background: "#e8f5ec", borderRadius: 6, padding: "8px 12px", marginBottom: 8 }}>
+                    <strong>Valuation impact:</strong> {a.valuation_impact}
+                  </div>
+                )}
+
+                {a.key_facts?.length > 0 && (
+                  <>
+                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Key Facts Extracted</div>
+                    <table>
+                      <thead><tr><th>Field</th><th>Value</th><th>Significance</th></tr></thead>
+                      <tbody>
+                        {a.key_facts.map((kf: any, j: number) => (
+                          <tr key={j}>
+                            <td style={{ fontWeight: 600 }}>{kf.field}</td>
+                            <td>{kf.value}</td>
+                            <td className="muted">{kf.significance}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </>
+                )}
+
+                {a.flags?.length > 0 && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Flags & Concerns</div>
+                    {a.flags.map((f: any, j: number) => (
+                      <div key={j} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+                        <span className={`pill ${f.severity === "high" ? "crit" : f.severity === "moderate" ? "warn" : "ok"}`}>
+                          {f.severity}
+                        </span>
+                        <div>
+                          <strong style={{ fontSize: 13 }}>{f.issue}</strong>
+                          <div className="muted">{f.detail}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {result && (
         <>

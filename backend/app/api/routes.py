@@ -10,7 +10,7 @@ from ..models.schemas import (
 from ..core.security import USERS, create_access_token, current_user, require_roles
 from ..core.audit import log_event, get_events
 from ..data.mock_store import CASES, build_graph, seed_demo_case
-from ..services.ingestion import extract_pdf, extract_xml
+from ..services.ingestion import extract_pdf, extract_xml, analyze_document_with_ai
 from ..services.chatbot import answer as chat_answer
 from ..services.agent import run_agent
 from ..services.evaluator import evaluate_address
@@ -165,17 +165,26 @@ async def upload_document(case_id: str, file: UploadFile = File(...),
         result = extract_xml(content)
     else:
         raise HTTPException(400, "Only PDF or XML supported")
+    # Run AI analysis on extracted text
+    if result["type"] == "pdf":
+        full_text = " ".join(p["text"] for p in result.get("pages", []))
+    else:
+        full_text = " ".join(f"{k}: {v}" for k, v in result.get("fields", {}).items())
+    ai_analysis = analyze_document_with_ai(full_text, file.filename)
+
     doc_id = f"D-{uuid4().hex[:6].upper()}"
     CASES[case_id]["documents"].append({
         "doc_id": doc_id, "filename": file.filename, "type": result["type"],
         "pages": result.get("page_count"),
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
         "extraction_confidence": result["extraction_confidence"],
+        "ai_analysis": ai_analysis,
     })
     log_event(user["sub"], "document.upload", "case", case_id,
               {"doc_id": doc_id, "filename": file.filename,
-               "extraction_confidence": result["extraction_confidence"]})
-    return {"doc_id": doc_id, **result}
+               "extraction_confidence": result["extraction_confidence"],
+               "doc_type": ai_analysis.get("document_type")})
+    return {"doc_id": doc_id, "ai_analysis": ai_analysis, **result}
 
 
 # ---------- Sources ----------
