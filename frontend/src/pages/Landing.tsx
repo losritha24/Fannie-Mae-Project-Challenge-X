@@ -61,7 +61,7 @@ export default function Landing() {
         display: "flex",
         alignItems: "flex-start",
         justifyContent: "space-between",
-        padding: "12px 48px",
+        padding: "0px 24px",
       }}>
         <div style={{ display: "flex", alignItems: "center" }}>
           <img src="/logo.png" alt="Property Insight AI" style={{ height: 220, width: "auto" }} />
