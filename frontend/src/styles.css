@@ -192,8 +192,6 @@ input, textarea, select {
 /* ── Chatbot floating widget ───────────────────────────────────────── */
 .chatbot-toggle {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
   width: 68px;
   height: 68px;
   border-radius: 50%;
@@ -216,8 +214,6 @@ input, textarea, select {
 
 .chatbot-panel {
   position: fixed;
-  bottom: 88px;
-  right: 24px;
   width: 400px;
   max-width: calc(100vw - 48px);
   max-height: 540px;

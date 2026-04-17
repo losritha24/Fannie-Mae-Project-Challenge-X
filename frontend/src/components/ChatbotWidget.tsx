@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { api } from "../api/client";
 
@@ -21,11 +21,17 @@ export default function ChatbotWidget() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Drag state
+  const [pos, setPos] = useState<{ right: number; bottom: number }>({ right: 24, bottom: 24 });
+  const dragging = useRef(false);
+  const dragStart = useRef<{ mouseX: number; mouseY: number; right: number; bottom: number } | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+
   const location = useLocation();
   const match = location.pathname.match(/\/case\/([^/]+)/);
   const caseId = match?.[1] ?? null;
 
-  // Listen for chatbot:ask events dispatched by suggestion chips
   useEffect(() => {
     const handler = (e: Event) => {
       const question = (e as CustomEvent<{ question: string }>).detail.question;
@@ -36,15 +42,38 @@ export default function ChatbotWidget() {
     return () => window.removeEventListener("chatbot:ask", handler);
   }, []);
 
-  // Auto-scroll to latest message
   useEffect(() => {
     if (open) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs, open]);
 
-  // Focus input when panel opens
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 50);
   }, [open]);
+
+  // Drag handlers on the header
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dragging.current = true;
+    dragStart.current = { mouseX: e.clientX, mouseY: e.clientY, right: pos.right, bottom: pos.bottom };
+  }, [pos]);
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!dragging.current || !dragStart.current) return;
+      const dx = dragStart.current.mouseX - e.clientX;
+      const dy = dragStart.current.mouseY - e.clientY;
+      const newRight = Math.max(8, Math.min(window.innerWidth - 80, dragStart.current.right + dx));
+      const newBottom = Math.max(8, Math.min(window.innerHeight - 80, dragStart.current.bottom + dy));
+      setPos({ right: newRight, bottom: newBottom });
+    };
+    const onMouseUp = () => { dragging.current = false; };
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
 
   const ask = async () => {
     if (!q.trim() || busy) return;
@@ -66,10 +95,12 @@ export default function ChatbotWidget() {
 
   return (
     <>
-      {/* Floating toggle button — always visible, fixed bottom-right */}
+      {/* Floating toggle button */}
       <button
+        ref={toggleRef}
         className="chatbot-toggle"
         onClick={() => setOpen((o) => !o)}
+        style={{ right: pos.right, bottom: pos.bottom }}
         aria-label={open ? "Close chatbot" : "Open Property AI Assistant"}
         title={open ? "Close chatbot" : "Property AI Assistant"}
       >
@@ -90,13 +121,19 @@ export default function ChatbotWidget() {
       {/* Overlay panel */}
       {open && (
         <div
+          ref={panelRef}
           className="chatbot-panel"
           role="dialog"
           aria-modal="false"
           aria-label="Property AI Assistant"
+          style={{ right: pos.right, bottom: pos.bottom + 80 }}
         >
-          {/* Header */}
-          <div className="chatbot-header">
+          {/* Header — drag handle */}
+          <div
+            className="chatbot-header"
+            onMouseDown={onMouseDown}
+            style={{ cursor: "grab", userSelect: "none" }}
+          >
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {!iconError && (
                 <img
@@ -107,24 +144,24 @@ export default function ChatbotWidget() {
                 />
               )}
               <span>Property AI Assistant</span>
+              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginLeft: 4 }}>drag to move</span>
             </div>
             <button
               className="chatbot-close"
               onClick={() => setOpen(false)}
+              onMouseDown={(e) => e.stopPropagation()}
               aria-label="Close chatbot"
             >
               ✕
             </button>
           </div>
 
-          {/* Subtitle */}
           {!caseId && (
             <p className="chatbot-subtitle muted" style={{ fontSize: 12 }}>
               Ask anything about property valuation, comparables, or market trends.
             </p>
           )}
 
-          {/* Message thread */}
           <div className="chatbot-messages">
             {msgs.length === 0 && (
               <div className="chatbot-empty muted">
@@ -150,31 +187,22 @@ export default function ChatbotWidget() {
               </div>
             ))}
             {busy && (
-              <div className="chat-msg assistant chatbot-thinking">
-                Thinking…
-              </div>
+              <div className="chat-msg assistant chatbot-thinking">Thinking…</div>
             )}
             <div ref={bottomRef} />
           </div>
 
-          {/* Input row */}
           <div className="chatbot-input-row">
             <input
               ref={inputRef}
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder={
-                caseId
-                  ? 'e.g. "Why is the range so wide?"'
-                  : 'e.g. "How are AVM models calculated?"'
-              }
+              placeholder={caseId ? 'e.g. "Why is the range so wide?"' : 'e.g. "How are AVM models calculated?"'}
               onKeyDown={(e) => e.key === "Enter" && ask()}
               disabled={busy}
               aria-label="Ask the assistant"
             />
-            <button onClick={ask} disabled={busy || !q.trim()}>
-              Ask
-            </button>
+            <button onClick={ask} disabled={busy || !q.trim()}>Ask</button>
           </div>
         </div>
       )}
