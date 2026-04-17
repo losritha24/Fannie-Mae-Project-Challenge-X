@@ -36,11 +36,27 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: string |
 function CaseSubLinks() {
   const cases = useQuery({ queryKey: ["cases"], queryFn: api.listCases, refetchInterval: 5000 });
   const first = cases.data?.[0]?.case_id;
-  if (!first) return null;
+  const disabled = !first;
+  const linkStyle = (isActive: boolean): React.CSSProperties => ({
+    fontSize: 13,
+    opacity: disabled ? 0.4 : 1,
+    pointerEvents: disabled ? "none" : "auto",
+    fontStyle: disabled ? "italic" : "normal",
+    background: isActive ? "rgba(255,255,255,0.12)" : "transparent",
+  });
   return (
     <div style={{ marginLeft: 12, borderLeft: "1px solid #1f3a2a", paddingLeft: 10 }}>
-      <NavLink to={`/case/${first}/graph`} style={{ fontSize: 13 }}>Knowledge Graph</NavLink>
-      <NavLink to={`/case/${first}/audit`} style={{ fontSize: 13 }}>Audit &amp; History</NavLink>
+      {disabled ? (
+        <>
+          <span title="Create a case first" style={{ fontSize: 13, opacity: 0.4, display: "block", padding: "4px 0", cursor: "default" }}>Knowledge Graph</span>
+          <span title="Create a case first" style={{ fontSize: 13, opacity: 0.4, display: "block", padding: "4px 0", cursor: "default" }}>Audit &amp; History</span>
+        </>
+      ) : (
+        <>
+          <NavLink to={`/case/${first}/graph`} style={({ isActive }) => linkStyle(isActive)}>Knowledge Graph</NavLink>
+          <NavLink to={`/case/${first}/audit`} style={({ isActive }) => linkStyle(isActive)}>Audit &amp; History</NavLink>
+        </>
+      )}
     </div>
   );
 }
