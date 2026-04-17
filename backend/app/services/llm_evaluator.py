@@ -38,6 +38,11 @@ NON-NEGOTIABLE RULES:
 - All dollar values (AVM estimates, comparable sale prices) MUST reflect current 2025-2026
   market prices for the specific ZIP code — NOT historical or pre-2023 values. U.S. home
   prices have risen 40-50% since 2019; factor in post-pandemic appreciation fully.
+- SQUARE FOOTAGE IS CRITICAL: You MUST report the actual recorded square footage for this
+  specific property address from County Assessor or public records — NOT a neighborhood
+  average or estimate. Large homes (4,000–8,000+ sq ft) are common in affluent ZIP codes;
+  never cap or round down square footage. If you know the address, report the real number.
+  If uncertain, set confidence to 0.6 or lower — do NOT substitute a smaller generic value.
 
 Return ONLY valid JSON with EXACTLY these top-level keys:
 
@@ -506,6 +511,11 @@ def llm_evaluate(address: str) -> dict[str, Any]:
             "significantly since 2020. Base all AVM estimates and comparable sale prices on "
             "realistic current market conditions for this specific ZIP code and neighborhood. "
             "Do NOT use pre-2023 price levels.\n\n"
+            "SQUARE FOOTAGE: Report the actual County Assessor recorded square footage for "
+            "this exact address. Do NOT use a neighborhood average or default value. Large "
+            "luxury or suburban homes commonly exceed 4,000–8,000 sq ft — report the real "
+            "number. If this address is a large home, the square footage must reflect that. "
+            "Lower your confidence score if unsure, but never substitute a smaller generic value.\n\n"
             "Produce the property facts, AVM estimates, datapoint alignment, and comparables JSON now."
         )
         user_msg_b = (
