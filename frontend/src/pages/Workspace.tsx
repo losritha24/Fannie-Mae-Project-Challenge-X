@@ -105,7 +105,6 @@ export default function Workspace() {
 
   useEffect(() => {
     if (id) fetch(`/api/v1/history/${id}`, { method: "GET" });
-    fetch("/api/v1/cases/" + id).catch(() => {});
   }, [id]);
 
   if (c.isLoading) return (
