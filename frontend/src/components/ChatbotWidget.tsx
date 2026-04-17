@@ -145,17 +145,6 @@ export default function ChatbotWidget() {
                       </span>
                     )}
                     <div>{m.direct_answer}</div>
-                    {m.supporting_evidence?.map((c, j) => (
-                      <span key={j} className="cite">
-                        → {c.source_name} ({c.source_ref}): {c.excerpt}
-                      </span>
-                    ))}
-                    {m.data_gaps?.length ? (
-                      <span className="cite">Gaps: {m.data_gaps.join("; ")}</span>
-                    ) : null}
-                    {m.suggested_next_action && (
-                      <span className="cite">Next: {m.suggested_next_action}</span>
-                    )}
                   </>
                 )}
               </div>
