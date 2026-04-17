@@ -79,6 +79,15 @@ Return ONLY valid JSON with EXACTLY these top-level keys:
       "source": "<Appraisal|BPO|HouseCanary|Redfin|County Assessor|AVM model>",
       "limitations": "<one sentence on what would improve confidence>"
     }
+  ],
+  "price_history": [
+    {
+      "event_type": "sale|listing|delisted|price_reduction",
+      "date_iso": "<YYYY-MM-DD>",
+      "price": <number or null>,
+      "source": "<MLS|County Assessor|Zillow|Redfin|CoreLogic|public record>",
+      "notes": "<brief context, e.g. 'Sold after 12 days on market' or 'Listed at $X, reduced to $Y'>"
+    }
   ]
 }
 
@@ -386,6 +395,36 @@ def _mock_evaluate(address: str) -> dict[str, Any]:
                 "limitations":  "Comparison based on listed comparable descriptions; subject-specific imagery would confirm.",
             },
         ],
+        "price_history": [
+            {
+                "event_type": "sale",
+                "date_iso": sale_date(365 * 5 + seed % 180),
+                "price": jitter(estimate * 0.62),
+                "source": "County Assessor",
+                "notes": f"Sold after {14 + seed % 20} days on market. Deed recorded with county.",
+            },
+            {
+                "event_type": "listing",
+                "date_iso": sale_date(365 * 5 + seed % 180 + 25),
+                "price": jitter(estimate * 0.64),
+                "source": "MLS",
+                "notes": "Originally listed at asking price before negotiated sale.",
+            },
+            {
+                "event_type": "sale",
+                "date_iso": sale_date(365 * 10 + seed % 200),
+                "price": jitter(estimate * 0.41),
+                "source": "County Assessor",
+                "notes": "Prior arms-length transaction recorded in public deed records.",
+            },
+            {
+                "event_type": "listing",
+                "date_iso": sale_date(365 * 10 + seed % 200 + 40),
+                "price": jitter(estimate * 0.43),
+                "source": "MLS",
+                "notes": f"Listed for {40 + seed % 30} days before sale.",
+            },
+        ],
         "anomalies": [
             {
                 "category":           "square_footage_variance",
@@ -516,7 +555,11 @@ def llm_evaluate(address: str) -> dict[str, Any]:
             "luxury or suburban homes commonly exceed 4,000–8,000 sq ft — report the real "
             "number. If this address is a large home, the square footage must reflect that. "
             "Lower your confidence score if unsure, but never substitute a smaller generic value.\n\n"
-            "Produce the property facts, AVM estimates, datapoint alignment, and comparables JSON now."
+            "Produce the property facts, AVM estimates, datapoint alignment, comparables, condition findings, "
+            "and price_history JSON now. For price_history, include ALL known past sale transactions and "
+            "listing events for this specific property — sale dates, sale prices, listing prices, and any "
+            "price reductions. Use County Assessor deed records, MLS history, Zillow/Redfin listing history, "
+            "and CoreLogic public record data. Include at least 2-5 events going back as far as records allow."
         )
         user_msg_b = (
             f"Today's date: {today_str}\n"
@@ -538,7 +581,7 @@ def llm_evaluate(address: str) -> dict[str, Any]:
         data = {**data_a, **data_b}
 
         required = {"property_facts", "avm_vendor_estimates", "datapoint_alignment",
-                    "comparables", "anomalies", "valuation", "hypothesis"}
+                    "comparables", "anomalies", "valuation", "hypothesis", "price_history"}
         missing = required - set(data.keys())
         if missing:
             raise RuntimeError(f"LLM response missing keys: {missing}")

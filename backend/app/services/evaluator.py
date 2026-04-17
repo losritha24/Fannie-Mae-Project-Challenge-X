@@ -158,6 +158,11 @@ def evaluate_address(address_line: str, city: str, state: str, zip_code: str,
     hypothesis = llm_result.get("hypothesis") or {}
     avm_vendors = llm_result.get("avm_vendor_estimates") or []
     alignment = llm_result.get("datapoint_alignment") or []
+    price_history = sorted(
+        llm_result.get("price_history") or [],
+        key=lambda x: x.get("date_iso", ""),
+        reverse=True,
+    )
 
     CASES[case_id] = {
         "case_id": case_id,
@@ -175,6 +180,7 @@ def evaluate_address(address_line: str, city: str, state: str, zip_code: str,
         "notes": notes,
         "avm_vendors": avm_vendors,
         "alignment": alignment,
+        "price_history": price_history,
     }
 
     import os
