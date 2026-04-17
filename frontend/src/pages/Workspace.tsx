@@ -135,10 +135,14 @@ export default function Workspace() {
           <h2 style={{ margin: 0 }}>{c.data.address}</h2>
           <div className="muted">Case {c.data.case_id} · Parcel {c.data.parcel_id}</div>
         </div>
-        <button onClick={handleExport} disabled={exporting}
-          style={{ background: "#2e7d4a", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", cursor: exporting ? "wait" : "pointer", fontWeight: 600, fontSize: 13 }}>
-          {exporting ? "Exporting…" : "Export PDF"}
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Link to={`/case/${id}/graph`}><button className="secondary" style={{ fontSize: 13 }}>Knowledge Graph</button></Link>
+          <Link to={`/case/${id}/audit`}><button className="secondary" style={{ fontSize: 13 }}>Audit & History</button></Link>
+          <button onClick={handleExport} disabled={exporting}
+            style={{ background: "#2e7d4a", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", cursor: exporting ? "wait" : "pointer", fontWeight: 600, fontSize: 13 }}>
+            {exporting ? "Exporting…" : "Export PDF"}
+          </button>
+        </div>
       </div>
 
       <div ref={contentRef}>
