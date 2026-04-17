@@ -43,6 +43,10 @@ NON-NEGOTIABLE RULES:
   average or estimate. Large homes (4,000–8,000+ sq ft) are common in affluent ZIP codes;
   never cap or round down square footage. If you know the address, report the real number.
   If uncertain, set confidence to 0.6 or lower — do NOT substitute a smaller generic value.
+- PRICE HISTORY IS CRITICAL: Report the actual recorded sale prices and dates from deed
+  records for this specific address. Do NOT make up prices or use neighborhood averages.
+  If you know this property sold for a specific amount on a specific date, use those exact
+  figures. Note uncertainty in the notes field rather than substituting fabricated values.
 
 Return ONLY valid JSON with EXACTLY these top-level keys:
 
@@ -556,10 +560,13 @@ def llm_evaluate(address: str) -> dict[str, Any]:
             "number. If this address is a large home, the square footage must reflect that. "
             "Lower your confidence score if unsure, but never substitute a smaller generic value.\n\n"
             "Produce the property facts, AVM estimates, datapoint alignment, comparables, condition findings, "
-            "and price_history JSON now. For price_history, include ALL known past sale transactions and "
-            "listing events for this specific property — sale dates, sale prices, listing prices, and any "
-            "price reductions. Use County Assessor deed records, MLS history, Zillow/Redfin listing history, "
-            "and CoreLogic public record data. Include at least 2-5 events going back as far as records allow."
+            "and price_history JSON now. For price_history, you MUST report the actual recorded sale "
+            "transactions for this specific property address — the real dates and real prices from County "
+            "Assessor deed records, MLS transaction history, Zillow/Redfin sold history, and CoreLogic. "
+            "Do NOT fabricate or approximate sale prices. If you know this address sold for $X on a specific "
+            "date, report that exact figure. If you are uncertain of the exact price, lower the confidence "
+            "in notes but still report the closest known value. Include all known events: sales, listings, "
+            "price reductions, going back as far as public records allow (typically 10-20 years)."
         )
         user_msg_b = (
             f"Today's date: {today_str}\n"
