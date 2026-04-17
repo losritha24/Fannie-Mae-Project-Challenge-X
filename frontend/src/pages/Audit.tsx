@@ -19,10 +19,31 @@ const EVENT_COLOR: Record<string, string> = {
 function PriceHistory({ history }: { history: any[] }) {
   if (!history?.length) return null;
 
+  const lastSale = history.find((ev: any) => ev.event_type === "sale");
+
   return (
     <div className="card" style={{ marginBottom: 16 }}>
       <h2>Property Price History</h2>
       <p className="muted">Past sale transactions and listing events for this property, sourced from public deed records and MLS history.</p>
+
+      {lastSale && (
+        <div style={{ display: "flex", gap: 24, marginBottom: 20, flexWrap: "wrap" }}>
+          <div style={{ background: "#e8f5ec", border: "1px solid #b0d4bb", borderRadius: 8, padding: "12px 18px" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#2e7d4a", textTransform: "uppercase", marginBottom: 4 }}>Last Purchased</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "#1b1f27" }}>
+              {lastSale.date_iso ? new Date(lastSale.date_iso).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "Unknown"}
+            </div>
+            {lastSale.price && (
+              <div style={{ fontSize: 14, color: "#2e7d4a", fontWeight: 600, marginTop: 2 }}>
+                ${Number(lastSale.price).toLocaleString()}
+              </div>
+            )}
+            {lastSale.source && (
+              <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>Source: {lastSale.source}</div>
+            )}
+          </div>
+        </div>
+      )}
       <div style={{ position: "relative", paddingLeft: 28 }}>
         {/* Vertical line */}
         <div style={{
