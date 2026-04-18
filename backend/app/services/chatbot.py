@@ -36,7 +36,7 @@ RULES:
 
 Return ONLY valid JSON with exactly these keys:
 {
-  "direct_answer": "<clear, helpful answer — be specific and informative>",
+  "direct_answer": "<answer formatted as concise bullet points using '• ' prefix for each point — do NOT write one long paragraph>",
   "supporting_evidence": [
     {"source_name": "<name>", "source_ref": "<field or knowledge base>", "excerpt": "<value or key fact>"}
   ],
@@ -68,7 +68,7 @@ RULES:
 
 Return ONLY valid JSON with exactly these keys:
 {
-  "direct_answer": "<clear, detailed, helpful answer>",
+  "direct_answer": "<answer formatted as concise bullet points using '• ' prefix for each point — do NOT write one long paragraph>",
   "supporting_evidence": [
     {"source_name": "<authoritative source>", "source_ref": "<guideline or standard>", "excerpt": "<key fact>"}
   ],

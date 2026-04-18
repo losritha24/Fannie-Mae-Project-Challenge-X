@@ -181,7 +181,11 @@ export default function ChatbotWidget() {
                         {m.classification}
                       </span>
                     )}
-                    <div>{m.direct_answer}</div>
+                    <div>
+                      {m.direct_answer?.split('\n').map((line, j) => (
+                        <div key={j} style={{ marginBottom: line.startsWith('•') ? 4 : 0 }}>{line}</div>
+                      ))}
+                    </div>
                   </>
                 )}
               </div>
